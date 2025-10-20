@@ -87,16 +87,15 @@ dependencies {
 
     // Facebook Login SDK
     implementation("com.facebook.android:facebook-android-sdk:17.0.0")
-
     // For phone number auth
     implementation("com.google.firebase:firebase-auth:23.0.0")
-    // app/build.gradle
-
     implementation("com.google.firebase:firebase-firestore-ktx")
     implementation(platform("com.google.firebase:firebase-bom:33.3.0"))
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
-
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4")
+    implementation("com.google.firebase:firebase-storage-ktx")
+
+
 
 
 

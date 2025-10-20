@@ -24,12 +24,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.fitmatch.navigations.NavigationManager
 import com.example.fitmatch.screens.*
+import com.example.fitmatch.ui.theme.FitMatchTheme
 import com.google.android.gms.auth.api.identity.BeginSignInRequest
 import com.google.android.gms.auth.api.identity.Identity
 import com.google.android.gms.auth.api.identity.SignInClient
@@ -87,7 +89,7 @@ class MainActivity : ComponentActivity() {
             .build()
         WindowCompat.setDecorFitsSystemWindows(window, false)
         setContent {
-            MaterialTheme {
+            FitMatchTheme{
                 val navController = rememberNavController()
                 navigationManager = remember { NavigationManager(navController) }
 
@@ -102,6 +104,10 @@ class MainActivity : ComponentActivity() {
                         }
                         composable("HomeScreen") {
                             HomeScreen(navigationManager = navigationManager)
+                        }
+
+                        composable("ProfileScreen") {
+                            ProfileScreen(navigationManager = navigationManager, viewModel = viewModel())
                         }
 
                         composable("signin") {

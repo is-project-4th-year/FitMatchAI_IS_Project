@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.fitmatch.Components.FitMatchHeader
 import com.example.fitmatch.R
 import com.example.fitmatch.navigations.NavigationManager
 import com.google.firebase.auth.FirebaseAuth
@@ -46,112 +47,94 @@ fun HomeScreen(navigationManager: NavigationManager) {
 
     Scaffold(
         topBar = {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(260.dp)
-                    // ✅ Smooth gradient that extends behind the status bar
-                    .background(
-                        brush = Brush.linearGradient(
-                            colors = listOf(Color(0xFF00C6FB), Color(0xFF0078FF))
-                        )
-                    )
-                    // ✅ Let the gradient draw behind camera cutouts
-                    .windowInsetsPadding(WindowInsets.systemBars)
-//                    .padding(WindowInsets.systemBars.asPaddingValues())
-                    .clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
+            FitMatchHeader(
+                title = "",
+                subtitle = ""
             ) {
+                // ---------- HEADER CONTENT ----------
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp)
-                        .padding(top = 10.dp, bottom= 10.dp),
-                    verticalArrangement = Arrangement.SpaceBetween
+                        .padding(
+                            start = 20.dp,
+                            end = 20.dp,
+                            bottom = 20.dp,
+                            top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 12.dp
+                        )
+                        .align(Alignment.TopStart)
+
                 ) {
+                    // 👋 Welcome message
+                    Text(
+                        text = "Welcome back, Charles Maina!",
+                        color = Color.White,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "Ready for today’s workout?",
+                        color = Color.White.copy(alpha = 0.9f),
+                        fontSize = 13.sp
+                    )
+
+                    Spacer(Modifier.height(18.dp))
+
+                    // 🏋️‍♀️ Weekly Goal Row
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Profile circle icon
+                        Column {
+                            Text(
+                                text = "This Week’s Goal",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Text("Lose 2 lbs", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Spacer(Modifier.height(6.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                                Column {
+                                    Text("12", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    Text("Day Streak", color = Color.White.copy(alpha = 0.9f), fontSize = 12.sp)
+                                }
+                                Column {
+                                    Text("89", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    Text("Total Workouts", color = Color.White.copy(alpha = 0.9f), fontSize = 12.sp)
+                                }
+                            }
+                        }
+
+                        // 🟢 Progress Indicator
                         Box(
-                            modifier = Modifier
-                                .size(50.dp)
-                                .clip(CircleShape)
-                                .background(Color.White.copy(alpha = 0.25f)),
-                            contentAlignment = Alignment.Center
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.padding(end = 8.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Person,
-                                contentDescription = "Profile",
-                                tint = Color.White,
-                                modifier = Modifier.size(24.dp)
+                            CircularProgressIndicator(
+                                progress = 0.68f,
+                                color = Color(0xFF1EC87C),
+                                strokeWidth = 5.dp,
+                                modifier = Modifier.size(70.dp)
+                            )
+                            Text(
+                                "68%\nComplete",
+                                color = Color.White,
+                                fontSize = 10.sp,
+                                lineHeight = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                textAlign = TextAlign.Center
                             )
                         }
-
-                        // Sign-out button
-                        IconButton(onClick = {
-                            navigationManager.navigateToLogin()
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.ExitToApp,
-                                contentDescription = "Sign Out",
-                                tint = Color.White,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                    }
-
-                    Spacer(Modifier.height(8.dp))
-
-                    // Welcome texts
-                    Column {
-                        Text(
-                            text = "Welcome back, Charles Maina!",
-                            color = Color.White,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = "Ready for today’s workout?",
-                            color = Color.White.copy(alpha = 0.9f),
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold
-
-                        )
-                    }
-
-                    // Progress indicator
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .offset(y= (-20).dp)
-                            .padding(end = 22.dp)
-                            .padding(top = 10.dp, end = 5.dp),
-                            contentAlignment = Alignment.CenterEnd
-
-                    ) {
-                        CircularProgressIndicator(
-                            progress = 0.68f,
-                            color = Color(0xFF1EC87C),
-                            strokeWidth = 5.dp,
-                            modifier = Modifier.size(70.dp)
-                        )
-                        Text(
-                            text = "68%\nComplete",
-                            color = Color.White,
-                            fontSize = 10.sp,
-                            lineHeight = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.offset(y=(40).dp)
-                        )
                     }
                 }
             }
-        },
-        bottomBar = { FitMatchBottomNav(navigationManager) },
+
+        }
+
+        ,bottomBar = { FitMatchBottomNav(navigationManager) },
         containerColor = Color.White
     ) { innerPadding ->
         Column(
@@ -160,24 +143,6 @@ fun HomeScreen(navigationManager: NavigationManager) {
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
         ) {
-            // ------------------ WEEKLY GOAL ------------------
-            Spacer(Modifier.height(16.dp))
-            Column(Modifier.padding(horizontal = 20.dp)) {
-                Text("This Week’s Goal", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = FMNavy)
-                Spacer(Modifier.height(6.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                    Column {
-                        Text("Lose 2 lbs", color = FMNavy, fontWeight = FontWeight.Bold)
-                        Text("12", color = FMNavy, fontWeight = FontWeight.Bold)
-                        Text("Day Streak", fontSize = 12.sp, color = FMMuted)
-                    }
-                    Column {
-                        Spacer(Modifier.height(16.dp))
-                        Text("89", color = FMNavy, fontWeight = FontWeight.Bold)
-                        Text("Total Workouts", fontSize = 12.sp, color = FMMuted)
-                    }
-                }
-            }
 
             // ------------------ QUICK ACTIONS ------------------
             Spacer(Modifier.height(24.dp))
@@ -268,6 +233,8 @@ fun HomeScreen(navigationManager: NavigationManager) {
     }
 }
 
+
+
 @Composable
 fun SummaryCard(value: String, label: String, color: Color, modifier: Modifier = Modifier) {
     Card(
@@ -337,7 +304,7 @@ fun FitMatchBottomNav(navigationManager: NavigationManager) {
                         "Home" -> navigationManager.navigateToHomeScreen()
                         "Goals" -> navigationManager.navigateToGoals()
                         "Progress" -> navigationManager.navigateToProgress()
-                        "Profile" -> navigationManager.navigateToProfile()
+                        "Profile" -> navigationManager.navigateToProfileScreen()
                     }
                 },
                 icon = {
@@ -360,40 +327,3 @@ fun FitMatchBottomNav(navigationManager: NavigationManager) {
     }
 }
 
-//@Composable
-//fun FitMatchBottomNav() {
-//    val selectedIndex = remember { mutableStateOf(0) }
-//    val activeColor = Color(0xFF1EC87C)
-//    val inactiveColor = Color(0xFF8E8E99)
-//    val items = listOf("Home", "Goals", "Progress", "Profile")
-//    val icons = listOf(
-//        R.drawable.ic_home,
-//        R.drawable.ic_goals,
-//        R.drawable.ic_progress,
-//        R.drawable.ic_user
-//    )
-//
-//    NavigationBar(containerColor = Color.White, tonalElevation = 0.dp) {
-//        items.forEachIndexed { index, label ->
-//            NavigationBarItem(
-//                selected = selectedIndex.value == index,
-//                onClick = { selectedIndex.value = index },
-//                icon = {
-//                    Icon(
-//                        painter = painterResource(id = icons[index]),
-//                        contentDescription = label,
-//                        tint = if (selectedIndex.value == index) activeColor else inactiveColor,
-//                        modifier = Modifier.size(26.dp)
-//                    )
-//                },
-//                label = {
-//                    Text(
-//                        label,
-//                        color = if (selectedIndex.value == index) activeColor else inactiveColor,
-//                        fontSize = 11.sp
-//                    )
-//                }
-//            )
-//        }
-//    }
-//}

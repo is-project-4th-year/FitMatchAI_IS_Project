@@ -2,6 +2,7 @@ package com.example.fitmatch.navigations
 
 import androidx.navigation.NavHostController
 
+
 class NavigationManager(private val navController: NavHostController) {
 
     // Navigate to Onboarding Screen
@@ -11,28 +12,28 @@ class NavigationManager(private val navController: NavHostController) {
             launchSingleTop = true
         }
     }
-    //member navigation
-    fun navigateToMember(){}
 
-    //member notification
-    fun navigateToNotifications(){}
-
-    //navigate to language
-    fun navigateToLanguage(){}
-    fun navigateToCountry(){}
-    fun navigateToClearCache(){}
-    fun navigateToEditProfile(){}
-    fun navigateToLegal(){}
-    fun navigateToHelp(){}
-    fun navigateToAboutUs(){}
-
-
-    //Navigate to Payment
-    fun navigateToPayment(){
-        navController.navigate("payment") {
+    fun navigateToGoals(){
+        navController.navigate("GoalScreen") {
+            popUpTo(navController.graph.startDestinationId) { inclusive = true }
             launchSingleTop = true
         }
     }
+
+    fun navigateToProgress(){
+        navController.navigate("ProgressScreen") {
+            popUpTo(navController.graph.startDestinationId) { inclusive = true }
+            launchSingleTop = true
+        }
+    }
+
+    fun navigateToProfile(){
+        navController.navigate("ProfileScreen") {
+            popUpTo(navController.graph.startDestinationId) { inclusive = true }
+            launchSingleTop = true
+        }
+    }
+
 
     // Navigate to Home Screen
     fun navigateToHomeScreen() {

@@ -23,6 +23,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.view.WindowCompat
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -84,7 +85,7 @@ class MainActivity : ComponentActivity() {
             )
             .setAutoSelectEnabled(true)
             .build()
-
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         setContent {
             MaterialTheme {
                 val navController = rememberNavController()
@@ -96,7 +97,12 @@ class MainActivity : ComponentActivity() {
                         composable("splash") { SplashScreen(navController) }
                         composable("onboarding") {
                             OnboardingScreen(
-                            navigationManager = navigationManager) }
+                                navigationManager = navigationManager
+                            )
+                        }
+                        composable("HomeScreen") {
+                            HomeScreen(navigationManager = navigationManager)
+                        }
 
                         composable("signin") {
                             LoginScreen(
@@ -121,15 +127,15 @@ class MainActivity : ComponentActivity() {
                             ResetPasswordScreen(navigationManager = navigationManager)
                         }
 
-                        composable("HomeScreen") {
-                            HomeScreen(navigationManager = navigationManager, auth = auth)
+
+                        composable("GoalScreen") {
+                            GoalScreen(auth = auth, navigationManager = navigationManager)
                         }
                     }
                 }
             }
         }
     }
-
     // ✅ Launch Google One Tap flow
     private fun launchGoogleOneTap() {
         oneTapClient.beginSignIn(signInRequest)

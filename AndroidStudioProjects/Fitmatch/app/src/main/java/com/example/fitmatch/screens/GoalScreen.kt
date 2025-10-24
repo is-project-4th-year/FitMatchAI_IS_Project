@@ -27,7 +27,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.fitmatch.models.Goal
+import com.example.fitmatch.Components.FitMatchCenteredHeader
+import com.example.fitmatch.Components.FitMatchHeader
+import com.example.fitmatch.data.Goal
 import com.example.fitmatch.Viewmodels.GoalsViewModel
 import com.example.fitmatch.navigations.NavigationManager
 import com.google.firebase.auth.FirebaseAuth
@@ -45,49 +47,12 @@ fun GoalScreen(
 
     Scaffold(
         topBar = {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(140.dp) // slightly taller for softer gradient blend
-                    .background(
-                        Brush.linearGradient(
-                            listOf(Color(0xFF14E06E), Color(0xFF4285F4)) // green → blue
-                        )
-                    )
-                    .verticalScroll(rememberScrollState())
-                    .padding(WindowInsets.statusBars.asPaddingValues()) // 👈 makes it fit under camera/notch
-                    .clip(RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp))
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = { navigationManager.goBack() }) {
-                        Icon(
-                            Icons.Default.ArrowBack,
-                            contentDescription = "Back",
-                            tint = Color.White
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Column {
-                        Text(
-                            "Goal Management",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp
-                        )
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            "Set new fitness goals and track your progress",
-                            color = Color.White.copy(alpha = 0.9f),
-                            fontSize = 13.sp
-                        )
-                    }
-                }
-            }
+            FitMatchCenteredHeader(
+                title = "Goal Management",
+                subtitle = "Set new fitness goals and track your progress",
+                showBack = true,
+                navigationManager = navigationManager
+            )
         }
     ) { inner ->
         LazyColumn(

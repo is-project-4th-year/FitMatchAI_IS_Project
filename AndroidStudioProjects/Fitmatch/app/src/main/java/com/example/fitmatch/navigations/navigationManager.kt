@@ -19,6 +19,12 @@ class NavigationManager(private val navController: NavHostController) {
             launchSingleTop = true
         }
     }
+    fun navigateToPlan() {
+        navController.navigate("PlanScreen") {
+            launchSingleTop = true
+        }
+    }
+
 
     fun navigateToProgress(){
         navController.navigate("ProgressScreen") {
@@ -50,8 +56,6 @@ class NavigationManager(private val navController: NavHostController) {
         }
     }
 
-
-
     // Navigate to SignUp Screen
     fun navigateToSignUp() {
         navController.navigate("SignUp") {
@@ -62,20 +66,6 @@ class NavigationManager(private val navController: NavHostController) {
     // Navigate to ForgotPassword Screen
     fun navigateToResetPassword() {
         navController.navigate("ResetPassword") {
-            launchSingleTop = true
-        }
-    }
-
-    //navigate to downloads screen
-    fun navigateToDownloadsScreen() {
-        navController.navigate("downloads") {
-            launchSingleTop = true
-        }
-    }
-
-    // navigate to search screen
-    fun navigateToSearchScreen() {
-        navController.navigate("search") {
             launchSingleTop = true
         }
     }

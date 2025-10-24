@@ -1,6 +1,6 @@
-package com.example.fitmatch.data
+package com.example.fitmatch.models
 
-import com.example.fitmatch.models.Goal
+import com.example.fitmatch.data.Goal
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.channels.awaitClose

@@ -83,7 +83,7 @@ fun OnboardingScreen(navigationManager: NavigationManager) {
                 Button(
                     onClick = {
                         if (isLastPage) {
-                            navigationManager.navigateToHomeScreen()
+                            navigationManager.navigateToLogin()
                         } else {
                             coroutineScope.launch {
                                 pagerState.animateScrollToPage(pagerState.currentPage + 1)

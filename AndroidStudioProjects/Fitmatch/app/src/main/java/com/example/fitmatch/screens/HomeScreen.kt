@@ -29,14 +29,14 @@ import com.example.fitmatch.navigations.NavigationManager
 import com.google.firebase.auth.FirebaseAuth
 
 @Composable
-fun HomeScreen(navigationManager: NavigationManager) {
-//    val user = auth.currentUser
-//    if (user == null) {
-//        LaunchedEffect(Unit) { navigationManager.navigateToLogin() }
-//        return
-//    }
+fun HomeScreen(navigationManager: NavigationManager, auth: FirebaseAuth) {
+    val user = auth.currentUser
+    if (user == null) {
+        LaunchedEffect(Unit) { navigationManager.navigateToLogin() }
+        return
+    }
 
-//    val userName = user.displayName ?: "User"
+    val userName = user.displayName ?: "User"
 
     val FMNavy = Color(0xFF0B0D1A)
     val FMGreen = Color(0xFF1EC87C)
@@ -149,7 +149,7 @@ fun HomeScreen(navigationManager: NavigationManager) {
             Column(Modifier.padding(horizontal = 20.dp)) {
                 Text("Quick Actions", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = FMNavy)
                 Spacer(Modifier.height(12.dp))
-                QuickActionCard("Add Metrics", "Log your latest workout", FMGreen)
+                QuickActionCard("To Plan", "Log your latest workout", FMGreen,  onClick = { navigationManager.navigateToPlan() })
                 Spacer(Modifier.height(10.dp))
                 QuickActionCard("View Recommendations", "AI-powered insights", FMLightBlue)
                 Spacer(Modifier.height(10.dp))

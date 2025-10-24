@@ -306,7 +306,7 @@ fun SettingsSection(
 
 @Composable
 fun EditFieldDialog(title: String, value: String, onDismiss: () -> Unit, onSave: () -> Unit,
-    onValueChange: (String) -> Unit
+                    onValueChange: (String) -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -344,7 +344,6 @@ fun SettingItem(title: String, switchValue: Boolean? = null, onToggle: ((Boolean
         }
     }
 }
-
 
 
 

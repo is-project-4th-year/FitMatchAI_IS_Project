@@ -3,8 +3,8 @@ package com.example.fitmatch.Viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.fitmatch.data.GoalsRepository
-import com.example.fitmatch.models.Goal
+import com.example.fitmatch.models.GoalsRepository
+import com.example.fitmatch.data.Goal
 
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.flow.*

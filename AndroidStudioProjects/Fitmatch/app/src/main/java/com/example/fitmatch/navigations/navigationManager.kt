@@ -19,6 +19,12 @@ class NavigationManager(private val navController: NavHostController) {
             launchSingleTop = true
         }
     }
+    fun navigateToPlan() {
+        navController.navigate("PlanScreen") {
+            launchSingleTop = true
+        }
+    }
+
 
     fun navigateToProgress(){
         navController.navigate("ProgressScreen") {

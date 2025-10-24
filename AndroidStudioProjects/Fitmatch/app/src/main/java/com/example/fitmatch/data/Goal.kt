@@ -1,4 +1,4 @@
-package com.example.fitmatch.models
+package com.example.fitmatch.data
 
 data class Goal(
     val id: String = "",

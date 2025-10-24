@@ -1,11 +1,13 @@
 package com.example.fitmatch
 
+import android.os.Build
 import android.util.Log
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,6 +31,8 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.fitmatch.Viewmodels.PlanViewModel
+import com.example.fitmatch.models.ProgressViewModel
 import com.example.fitmatch.navigations.NavigationManager
 import com.example.fitmatch.screens.*
 import com.example.fitmatch.ui.theme.FitMatchTheme
@@ -72,6 +76,9 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+
+
+    @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -88,11 +95,19 @@ class MainActivity : ComponentActivity() {
             .setAutoSelectEnabled(true)
             .build()
         WindowCompat.setDecorFitsSystemWindows(window, false)
+
+        @Composable
+        fun planViewModel(): PlanViewModel = viewModel(
+            factory = PlanViewModel.factory(
+                FirebaseAuth.getInstance(),
+                com.google.firebase.firestore.FirebaseFirestore.getInstance()
+            )
+        )
+
         setContent {
             FitMatchTheme{
                 val navController = rememberNavController()
                 navigationManager = remember { NavigationManager(navController) }
-
                 Surface {
                     NavHost(navController, startDestination = "splash") {
 
@@ -103,13 +118,17 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("HomeScreen") {
-                            HomeScreen(navigationManager = navigationManager)
+                            HomeScreen(navigationManager = navigationManager, auth= auth)
                         }
 
                         composable("ProfileScreen") {
                             ProfileScreen(navigationManager = navigationManager, viewModel = viewModel())
                         }
-
+                        composable("ProgressScreen") {
+                            ProgressScreen(navigationManager = navigationManager,
+                                viewModel = viewModel()
+                            )
+                        }
                         composable("signin") {
                             LoginScreen(
                                 navigationManager = navigationManager,
@@ -117,6 +136,9 @@ class MainActivity : ComponentActivity() {
                                 onGoogleSignInClick = { launchGoogleOneTap() },
                                 onAppleSignInClick = { /* optional */ }
                             )
+                        }
+                        composable("PlanScreen") {
+                            PlanScreen(navigationManager = navigationManager, viewModel = planViewModel())
                         }
                         composable("SignUp") {
                             SignUpScreen(
@@ -126,14 +148,9 @@ class MainActivity : ComponentActivity() {
                                 onAppleSignInClick = { /* optional */ }
                             )
                         }
-
-
-
                         composable("ResetPassword") {
                             ResetPasswordScreen(navigationManager = navigationManager)
                         }
-
-
                         composable("GoalScreen") {
                             GoalScreen(auth = auth, navigationManager = navigationManager)
                         }

@@ -29,7 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.fitmatch.Components.FitMatchCenteredHeader
 import com.example.fitmatch.Components.FitMatchHeader
-import com.example.fitmatch.models.Goal
+import com.example.fitmatch.data.Goal
 import com.example.fitmatch.Viewmodels.GoalsViewModel
 import com.example.fitmatch.navigations.NavigationManager
 import com.google.firebase.auth.FirebaseAuth

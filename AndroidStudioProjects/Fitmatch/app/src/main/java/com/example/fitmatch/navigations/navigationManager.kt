@@ -1,5 +1,6 @@
 package com.example.fitmatch.navigations
 
+import android.net.Uri
 import androidx.navigation.NavHostController
 
 
@@ -9,6 +10,14 @@ class NavigationManager(private val navController: NavHostController) {
     fun navigateToOnboarding() {
         navController.navigate("onboarding") {
             popUpTo(navController.graph.startDestinationId) { inclusive = true }
+            launchSingleTop = true
+        }
+    }
+
+    fun navigateToOtp(verificationId: String, phone: String) {
+        val vid = Uri.encode(verificationId)
+        val ph  = Uri.encode(phone)
+        navController.navigate("otp/$vid/$ph") {
             launchSingleTop = true
         }
     }

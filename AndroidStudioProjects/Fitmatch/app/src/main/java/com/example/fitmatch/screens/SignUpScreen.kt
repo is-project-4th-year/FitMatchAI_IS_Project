@@ -284,7 +284,8 @@ private fun PhoneSignUpFormWithOtpDialog(
                     verificationId = id
                     resendToken = token
                     sending = false
-                    showOtp = true
+                    navigationManager.navigateToOtp(id, phone)
+
                 }
             }
             val options = PhoneAuthOptions.newBuilder(auth)

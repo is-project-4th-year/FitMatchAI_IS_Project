@@ -1,0 +1,21 @@
+# Dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# System deps (optional but handy for wheels)
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy app code + model artifacts
+COPY server.py ./server.py
+COPY pipeline.joblib ./pipeline.joblib
+COPY feature_schema.json ./feature_schema.json
+
+# Cloud Run provides PORT; default 8080 for local
+ENV PORT=8080
+
+EXPOSE 8080
+CMD exec uvicorn server:app --host 0.0.0.0 --port ${PORT}

@@ -154,6 +154,12 @@ class MainActivity : ComponentActivity() {
                         composable("GoalScreen") {
                             GoalScreen(auth = auth, navigationManager = navigationManager)
                         }
+                        composable("otp/{vid}/{phone}") { backStack ->
+                            val vid = backStack.arguments?.getString("vid") ?: ""
+                            val phone = backStack.arguments?.getString("phone") ?: ""
+                            OtpVerifyScreen(auth = auth, navigationManager = navigationManager, verificationId = vid, phoneNumber = phone)
+                        }
+
                     }
                 }
             }

@@ -135,7 +135,8 @@ fun LoginScreen(
                             fieldBg = FMFieldBg,
                             navy = FMNavy,
                             muted = FMMuted,
-                            green = FMGreen
+                            green = FMGreen,
+                            navigationManager
                         )
                     }
                 }
@@ -302,7 +303,7 @@ fun EmailLoginForm(auth: FirebaseAuth, navigationManager: NavigationManager, fie
 
 @Composable
 fun PhoneLoginFormWithOtpDialog(auth: FirebaseAuth, fieldBg: Color, navy: Color, muted: Color,
-    green: Color
+    green: Color,  navigationManager: NavigationManager
 ) {
     val activity = LocalContext.current as Activity
 
@@ -341,7 +342,7 @@ fun PhoneLoginFormWithOtpDialog(auth: FirebaseAuth, fieldBg: Color, navy: Color,
                         verificationId = id
                         resendToken = token
                         sending = false
-                        showOtp = true
+                        navigationManager.navigateToOtp(id, phone)
                     }
                 }
                 val options = PhoneAuthOptions.newBuilder(auth)

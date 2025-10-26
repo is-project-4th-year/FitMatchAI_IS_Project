@@ -149,7 +149,7 @@ fun HomeScreen(navigationManager: NavigationManager, auth: FirebaseAuth) {
             Column(Modifier.padding(horizontal = 20.dp)) {
                 Text("Quick Actions", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = FMNavy)
                 Spacer(Modifier.height(12.dp))
-                QuickActionCard("To Plan", "Log your latest workout", FMGreen,  onClick = { navigationManager.navigateToPlan() })
+                QuickActionCard("Add your Plan", "Log your latest workout", FMGreen,  onClick = { navigationManager.navigateToPlan() })
                 Spacer(Modifier.height(10.dp))
                 QuickActionCard("View Recommendations", "AI-powered insights", FMLightBlue)
                 Spacer(Modifier.height(10.dp))

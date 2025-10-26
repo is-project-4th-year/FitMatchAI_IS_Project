@@ -30,6 +30,8 @@ class PlanViewModel(
 
     init {
         observeRecommendations()
+        
+
     }
 
     fun submitMetrics(
@@ -40,11 +42,10 @@ class PlanViewModel(
         val uid = auth.currentUser?.uid ?: return
         viewModelScope.launch {
             try {
-                _ui.value = _ui.value.copy(loading = true, error = null)
+                _ui.value = _ui.value.copy(loading = true, error = null, latestPlan = null)
                 val ref = db.collection("users").document(uid)
-                    .collection("metrics").document()
-                val payload = hashMapOf(
-                    "features" to mapOf(
+                    .collection("features").document()
+                val payload = mapOf(
                         "age" to age,
                         "height" to height,
                         "weight" to weight,
@@ -52,13 +53,20 @@ class PlanViewModel(
                         "goal_type" to goalType,
                         "workouts_per_week" to workoutsPerWeek,
                         "calories_avg" to caloriesAvg,
-                        "equipment" to equipment
-                    ),
-                    "status" to "pending",
-                    "submitted_at" to com.google.firebase.Timestamp.now()
+                        "equipment" to equipment,
+                        "status" to "pending",
+                        "submitted_at" to com.google.firebase.Timestamp.now()
                 )
                 ref.set(payload).addOnSuccessListener {
                     _ui.value = _ui.value.copy(lastRequestId = ref.id)
+                    viewModelScope.launch {
+                        kotlinx.coroutines.delay(25_000)
+                        val stall = ui.value.loading && ui.value.latestPlan == null
+                        if (stall) _ui.value = _ui.value.copy(
+                            loading = false,
+                            error = "Timed out waiting for workout plan."
+                        )
+                    }
                 }.addOnFailureListener { e ->
                     _ui.value = _ui.value.copy(loading = false, error = e.message)
                 }
@@ -71,37 +79,43 @@ class PlanViewModel(
     private fun observeRecommendations() {
         val uid = auth.currentUser?.uid ?: return
         db.collection("users").document(uid)
-            .collection("recommendations")
+            .collection("workoutplan")
+            .orderBy("created_at", com.google.firebase.firestore.Query.Direction.DESCENDING)
+            .limit(1)
             .addSnapshotListener { snap, err ->
                 if (err != null) {
                     _ui.value = _ui.value.copy(loading = false, error = err.message)
                     return@addSnapshotListener
                 }
-                val latest = snap?.documents?.maxByOrNull { it.getTimestamp("created_at")?.seconds ?: 0 }
-                latest?.let { d ->
-                    val ex = (d.get("exercises") as? List<Map<String, Any?>>)?.map {
-                        ExerciseDTO(
-                            day = (it["day"] as? Number)?.toInt() ?: 0,
-                            block = it["block"]?.toString() ?: "",
-                            name = it["name"]?.toString() ?: "",
-                            sets = (it["sets"] as? Number)?.toInt() ?: 0,
-                            reps = it["reps"]?.toString() ?: "",
-                            tempo = it["tempo"]?.toString() ?: "",
-                            rest_sec = (it["rest_sec"] as? Number)?.toInt() ?: 0
-                        )
-                    } ?: emptyList()
-                    val plan = PlanDTO(
-                        prediction = d.getDouble("prediction") ?: 0.0,
-                        plan_id = d.getString("plan_id") ?: "",
-                        microcycle_days = (d.getLong("microcycle_days") ?: 0L).toInt(),
-                        exercises = ex,
-                        notes = d.getString("notes") ?: "",
-                        model_version = d.getString("model_version") ?: ""
-                    )
-                    _ui.value = _ui.value.copy(loading = false, latestPlan = plan)
+                val d = snap?.documents?.firstOrNull()
+                if (d == null) {
+                    // No plan yet
+                    _ui.value = _ui.value.copy(loading = false)
+                    return@addSnapshotListener
                 }
+                val ex = (d.get("exercises") as? List<Map<String, Any?>>)?.map {
+                    ExerciseDTO(
+                        day = (it["day"] as? Number)?.toInt() ?: 0,
+                        block = it["block"]?.toString() ?: "",
+                        name = it["name"]?.toString() ?: "",
+                        sets = (it["sets"] as? Number)?.toInt() ?: 0,
+                        reps = it["reps"]?.toString() ?: "",
+                        tempo = it["tempo"]?.toString() ?: "",
+                        rest_sec = (it["rest_sec"] as? Number)?.toInt() ?: 0
+                    )
+                } ?: emptyList()
+                val plan = PlanDTO(
+                    prediction = d.getDouble("prediction") ?: 0.0,
+                    plan_id = d.getString("plan_id") ?: "",
+                    microcycle_days = (d.getLong("microcycle_days") ?: 0L).toInt(),
+                    exercises = ex,
+                    notes = d.getString("notes") ?: "",
+                    model_version = d.getString("model_version") ?: ""
+                )
+                _ui.value = _ui.value.copy(loading = false, latestPlan = plan)
             }
     }
+
 
     companion object {
         fun factory(

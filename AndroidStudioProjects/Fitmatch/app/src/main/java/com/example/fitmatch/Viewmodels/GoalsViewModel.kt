@@ -1,25 +1,28 @@
 package com.example.fitmatch.Viewmodels
 
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.fitmatch.models.GoalsRepository
 import com.example.fitmatch.data.Goal
-
+import com.example.fitmatch.models.GoalsRepository
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
-class GoalsViewModel(private val repo: GoalsRepository) : ViewModel() {
+class GoalsViewModel(
+    private val repo: GoalsRepository = run {
+        val uid = FirebaseAuth.getInstance().currentUser?.uid
+            ?: error("User not logged in")
+        GoalsRepository(uid)
+    }
+) : ViewModel() {
+
     private val _goals = MutableStateFlow<List<Goal>>(emptyList())
     val goals: StateFlow<List<Goal>> = _goals.asStateFlow()
 
-    val activeGoals = goals.map { it.filter { g -> g.status == "active" } }.stateIn(
-        viewModelScope, SharingStarted.Eagerly, emptyList()
-    )
-    val pastGoals = goals.map { it.filter { g -> g.status == "completed" } }.stateIn(
-        viewModelScope, SharingStarted.Eagerly, emptyList()
-    )
+    val activeGoals = goals.map { it.filter { g -> g.status == "active" } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val pastGoals = goals.map { it.filter { g -> g.status == "completed" } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     init {
         viewModelScope.launch {
@@ -33,10 +36,11 @@ class GoalsViewModel(private val repo: GoalsRepository) : ViewModel() {
     fun markCompleted(id: String) = viewModelScope.launch { repo.markCompleted(id) }
     fun delete(id: String) = viewModelScope.launch { repo.delete(id) }
 
-    companion object {
-        fun factory(auth: FirebaseAuth): GoalsViewModel {
-            val uid = auth.currentUser?.uid ?: error("User not logged in")
-            return GoalsViewModel(GoalsRepository(uid))
-        }
-    }
+
+//    companion object {
+//        fun factory(auth: FirebaseAuth): GoalsViewModel {
+//            val uid = auth.currentUser?.uid ?: error("User not logged in")
+//            return GoalsViewModel(GoalsRepository(uid))
+//        }
+//    }
 }

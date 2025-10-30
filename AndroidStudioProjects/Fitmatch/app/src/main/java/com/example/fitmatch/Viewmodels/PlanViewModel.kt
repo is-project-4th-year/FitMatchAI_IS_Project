@@ -1,131 +1,65 @@
-package com.example.fitmatch.Viewmodels
+package com.example.fitmatch.viewmodel
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.fitmatch.data.ExerciseDTO
 import com.example.fitmatch.data.PlanDTO
+import com.example.fitmatch.models.PlanRepository
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class PlanUiState(
     val loading: Boolean = false,
-    val lastRequestId: String? = null,
-    val latestPlan: PlanDTO? = null,
-    val error: String? = null
+    val error: String? = null,
+    val latest: PlanDTO? = null,
+    val history: List<PlanDTO> = emptyList()
 )
 
 class PlanViewModel(
-    private val auth: FirebaseAuth,
-    private val db: FirebaseFirestore
-): ViewModel() {
+    private val repo: PlanRepository,
+    private val auth: FirebaseAuth
+) : ViewModel() {
 
     private val _ui = MutableStateFlow(PlanUiState())
-    val ui: StateFlow<PlanUiState> = _ui
+    val ui: StateFlow<PlanUiState> = _ui.asStateFlow()
 
-    init {
-        observeRecommendations()
-        
+    private fun uidOrThrow(): String =
+        auth.currentUser?.uid ?: throw IllegalStateException("User not authenticated")
 
-    }
-
-    fun submitMetrics(
-        age: Int, height: Double, weight: Double, bmi: Double,
-        goalType: Int, workoutsPerWeek: Int, caloriesAvg: Double,
-        equipment: String
-    ) {
-        val uid = auth.currentUser?.uid ?: return
+    fun startObservingHistory() {
+        val uid = runCatching { uidOrThrow() }.getOrElse {
+            _ui.update { it.copy(error = "Not signed in") }
+            return
+        }
         viewModelScope.launch {
-            try {
-                _ui.value = _ui.value.copy(loading = true, error = null, latestPlan = null)
-                val ref = db.collection("users").document(uid)
-                    .collection("features").document()
-                val payload = mapOf(
-                        "age" to age,
-                        "height" to height,
-                        "weight" to weight,
-                        "bmi" to bmi,
-                        "goal_type" to goalType,
-                        "workouts_per_week" to workoutsPerWeek,
-                        "calories_avg" to caloriesAvg,
-                        "equipment" to equipment,
-                        "status" to "pending",
-                        "submitted_at" to com.google.firebase.Timestamp.now()
-                )
-                ref.set(payload).addOnSuccessListener {
-                    _ui.value = _ui.value.copy(lastRequestId = ref.id)
-                    viewModelScope.launch {
-                        kotlinx.coroutines.delay(25_000)
-                        val stall = ui.value.loading && ui.value.latestPlan == null
-                        if (stall) _ui.value = _ui.value.copy(
-                            loading = false,
-                            error = "Timed out waiting for workout plan."
-                        )
-                    }
-                }.addOnFailureListener { e ->
-                    _ui.value = _ui.value.copy(loading = false, error = e.message)
-                }
-            } catch (e: Exception) {
-                _ui.value = _ui.value.copy(loading = false, error = e.message)
+            repo.observePlans(uid).collect { plans ->
+                _ui.update { it.copy(history = plans, latest = plans.firstOrNull(), error = null) }
             }
         }
     }
 
-    private fun observeRecommendations() {
-        val uid = auth.currentUser?.uid ?: return
-        db.collection("users").document(uid)
-            .collection("workoutplan")
-            .orderBy("created_at", com.google.firebase.firestore.Query.Direction.DESCENDING)
-            .limit(1)
-            .addSnapshotListener { snap, err ->
-                if (err != null) {
-                    _ui.value = _ui.value.copy(loading = false, error = err.message)
-                    return@addSnapshotListener
-                }
-                val d = snap?.documents?.firstOrNull()
-                if (d == null) {
-                    // No plan yet
-                    _ui.value = _ui.value.copy(loading = false)
-                    return@addSnapshotListener
-                }
-                val ex = (d.get("exercises") as? List<Map<String, Any?>>)?.map {
-                    ExerciseDTO(
-                        day = (it["day"] as? Number)?.toInt() ?: 0,
-                        block = it["block"]?.toString() ?: "",
-                        name = it["name"]?.toString() ?: "",
-                        sets = (it["sets"] as? Number)?.toInt() ?: 0,
-                        reps = it["reps"]?.toString() ?: "",
-                        tempo = it["tempo"]?.toString() ?: "",
-                        rest_sec = (it["rest_sec"] as? Number)?.toInt() ?: 0
-                    )
-                } ?: emptyList()
-                val plan = PlanDTO(
-                    prediction = d.getDouble("prediction") ?: 0.0,
-                    plan_id = d.getString("plan_id") ?: "",
-                    microcycle_days = (d.getLong("microcycle_days") ?: 0L).toInt(),
-                    exercises = ex,
-                    notes = d.getString("notes") ?: "",
-                    model_version = d.getString("model_version") ?: ""
-                )
-                _ui.value = _ui.value.copy(loading = false, latestPlan = plan)
-            }
-    }
-
-
-    companion object {
-        fun factory(
-            auth: FirebaseAuth,
-            db: FirebaseFirestore
-        ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return PlanViewModel(auth, db) as T
-            }
+    fun generateFromMetrics(
+        age: Int, heightCm: Double, weightKg: Double, bmi: Double,
+        goalTypeIndex: Int, workoutsPerWeek: Int, caloriesAvg: Double, equipment: String
+    ) {
+        val uid = runCatching { uidOrThrow() }.getOrElse {
+            _ui.update { it.copy(error = "Not signed in") }; return
+        }
+        val features = mapOf(
+            "age" to age, "height" to heightCm, "weight" to weightKg, "bmi" to bmi,
+            "goal_type" to goalTypeIndex, "workouts_per_week" to workoutsPerWeek,
+            "calories_avg" to caloriesAvg, "equipment" to equipment.lowercase()
+        )
+        viewModelScope.launch {
+            _ui.update { it.copy(loading = true, error = null) }
+            runCatching { repo.generateAndSavePlan(uid, features) }
+                .onSuccess { plan -> _ui.update { it.copy(loading = false, latest = plan) } }
+                .onFailure { e -> _ui.update { it.copy(loading = false, error = e.message ?: "Failed") } }
         }
     }
+
+    fun clearError() { _ui.update { it.copy(error = null) } }
 }

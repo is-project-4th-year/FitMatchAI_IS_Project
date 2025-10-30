@@ -3,6 +3,7 @@ package com.example.fitmatch
 import android.os.Build
 import android.util.Log
 import android.os.Bundle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.IntentSenderRequest
@@ -15,7 +16,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -31,18 +31,27 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.example.fitmatch.Viewmodels.PlanViewModel
-import com.example.fitmatch.models.ProgressViewModel
+import com.example.fitmatch.models.PlanRepositoryImpl
 import com.example.fitmatch.navigations.NavigationManager
 import com.example.fitmatch.screens.*
 import com.example.fitmatch.ui.theme.FitMatchTheme
+import com.example.fitmatch.viewmodel.PlanViewModel
 import com.google.android.gms.auth.api.identity.BeginSignInRequest
 import com.google.android.gms.auth.api.identity.Identity
 import com.google.android.gms.auth.api.identity.SignInClient
 import com.google.android.gms.common.api.ApiException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.delay
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import com.example.fitmatch.Viewmodels.GoalsViewModel
+import com.example.fitmatch.models.GoalsRepository
+import com.example.fitmatch.net.NetworkModule
+import com.example.fitmatch.viewmodel.PlanViewModelFactory
 
 class MainActivity : ComponentActivity() {
 
@@ -96,16 +105,9 @@ class MainActivity : ComponentActivity() {
             .build()
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
-        @Composable
-        fun planViewModel(): PlanViewModel = viewModel(
-            factory = PlanViewModel.factory(
-                FirebaseAuth.getInstance(),
-                com.google.firebase.firestore.FirebaseFirestore.getInstance()
-            )
-        )
-
         setContent {
             FitMatchTheme{
+
                 val navController = rememberNavController()
                 navigationManager = remember { NavigationManager(navController) }
                 Surface {
@@ -137,9 +139,30 @@ class MainActivity : ComponentActivity() {
                                 onAppleSignInClick = { /* optional */ }
                             )
                         }
-                        composable("PlanScreen") {
-                            PlanScreen(navigationManager = navigationManager, viewModel = planViewModel())
+
+                        composable ( "PlanScreen" ){
+                            val repo = remember {
+                                PlanRepositoryImpl(db = FirebaseFirestore.getInstance(),
+                                    api = NetworkModule.api)
+                            }
+                            val planFactory =
+                                remember{ PlanViewModelFactory(repo,FirebaseAuth.getInstance()) }
+                            val planVm: PlanViewModel = viewModel(factory = planFactory)
+                            val goalsFactory= remember {
+                                object : ViewModelProvider.Factory {
+                                    @Suppress("UNCHECKED_CAST")
+                                    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                                        val uid = FirebaseAuth.getInstance().currentUser?.uid
+                                            ?: error("Not logged in")
+                                        return GoalsViewModel(GoalsRepository(uid)) as T
+                                    }
+                                }
+                            }
+                            val goalsVm: GoalsViewModel = viewModel (factory = goalsFactory)
+                        PlanScreen(navigationManager = navigationManager, planVm = planVm,
+                            goalsVm =goalsVm )
                         }
+
                         composable("SignUp") {
                             SignUpScreen(
                                 navigationManager = navigationManager,
@@ -148,12 +171,16 @@ class MainActivity : ComponentActivity() {
                                 onAppleSignInClick = { /* optional */ }
                             )
                         }
+                        composable("GoalScreen") {
+                            GoalScreen(
+                                auth = auth,
+                                navigationManager = navigationManager
+                            )
+                        }
                         composable("ResetPassword") {
                             ResetPasswordScreen(navigationManager = navigationManager)
                         }
-                        composable("GoalScreen") {
-                            GoalScreen(auth = auth, navigationManager = navigationManager)
-                        }
+
                         composable("otp/{vid}/{phone}") { backStack ->
                             val vid = backStack.arguments?.getString("vid") ?: ""
                             val phone = backStack.arguments?.getString("phone") ?: ""

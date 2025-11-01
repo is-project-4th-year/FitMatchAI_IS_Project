@@ -28,6 +28,8 @@ import com.example.fitmatch.navigations.NavigationManager
 import com.example.fitmatch.viewmodel.PlanViewModel
 import com.google.firebase.auth.FirebaseAuth
 import androidx.compose.ui.text.input.KeyboardType
+import com.example.fitmatch.data.Goal
+import com.example.fitmatch.util.estimateCalorieTarget
 
 @Composable
 fun PlanScreen(
@@ -44,6 +46,8 @@ fun PlanScreen(
     )
 ) {
     val ui by planVm.ui.collectAsState()
+    val activeGoals: List<Goal>
+            by goalsVm.activeGoals.collectAsState(initial = emptyList())
     LaunchedEffect(Unit) { planVm.startObservingHistory() }
     val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 12.dp
 
@@ -122,7 +126,10 @@ fun PlanScreen(
 
         when (tab) {
             0 -> QuickSelectSection(ui = ui)
-            1 -> CustomEntrySectionStyled(planVm = planVm, uiLoading = ui.loading, uiError = ui.error)
+            1 -> CustomEntrySectionStyled(planVm = planVm,
+                uiLoading = ui.loading,
+                uiError = ui.error,
+                activeGoals = activeGoals)
         }
     }
 }
@@ -238,10 +245,8 @@ private fun ExerciseRowCard(ex: ExerciseDTO) {
 /* ------------ Custom Entry (single card form, same fields/backend) ------------ */
 
 @Composable
-private fun CustomEntrySectionStyled(
-    planVm: PlanViewModel,
-    uiLoading: Boolean,
-    uiError: String?
+fun CustomEntrySectionStyled(planVm: PlanViewModel, uiLoading: Boolean,
+                                     uiError: String?, activeGoals:List<Goal>
 ) {
     var age by rememberSaveable { mutableStateOf("") }
     var height by rememberSaveable { mutableStateOf("") }
@@ -259,6 +264,47 @@ private fun CustomEntrySectionStyled(
             val m = h / 100.0
             bmi = String.format("%.1f", w / (m * m))
         }
+    }
+    fun estimateAndFillCalories() {
+        val a = age.toIntOrNull()
+        val h = height.toDoubleOrNull()
+        val w = weight.toDoubleOrNull()
+        val wpw = workouts.toIntOrNull()
+        val tgt = estimateCalorieTarget(a, h, w, wpw)
+        if (tgt != null) {
+            calories = tgt.targetIntake.toString()
+            // If you want a toast/snackbar later, you can show tgt.notes
+        }
+    }
+    // (A) Prefill from latest active Goal (goal type + workouts/week)
+    LaunchedEffect(activeGoals) {
+        val g = activeGoals.firstOrNull()
+        if (g != null) {
+            goalIndex = when (g.goalType.trim().lowercase()) {
+                "fatloss", "fat loss", "cut" -> 0
+                "endurance" -> 2
+                else -> 1
+            }
+            if (workouts.isBlank() && g.workoutsPerWeek > 0) {
+                workouts = g.workoutsPerWeek.toString()
+            }
+            // Optional display-only label (if you want to show it in UI later)
+//            val label = "${g.durationWeeks} weeks • ${dateLabel(g.startDate)} - ${dateLabel(g.endDate)}"
+        }
+    }
+
+// (B) Prefill from last submitted Features (age/height/weight/bmi/calories/equipment)
+    LaunchedEffect(Unit) {
+        planVm.fetchLatestFeatures(
+            onResult = { f ->
+                age      = (f["age"] as? Number)?.toInt()?.toString() ?: age
+                height   = (f["height"] as? Number)?.toDouble()?.toString() ?: height
+                weight   = (f["weight"] as? Number)?.toDouble()?.toString() ?: weight
+                bmi      = (f["bmi"] as? Number)?.toDouble()?.let { String.format("%.1f", it) } ?: bmi
+                calories = (f["calories_avg"] as? Number)?.toDouble()?.toString() ?: calories
+                (f["equipment"] as? String)?.let { equipment = it }
+            }
+        )
     }
 
     LazyColumn(
@@ -323,8 +369,11 @@ private fun CustomEntrySectionStyled(
                     }
 
                     // Calculate BMI button (light, full width)
-                    OutlinedButton(onClick = { computeBmi() }, modifier = Modifier.fillMaxWidth()) {
-                        Text("Calculate BMI")
+                    OutlinedButton(onClick = {
+                        computeBmi()
+                        estimateAndFillCalories() },
+                        modifier = Modifier.fillMaxWidth()) {
+                        Text("Calculate BMI and Calories")
                     }
 
                     // Goal chips row (pill look)

@@ -1,6 +1,6 @@
-
 package com.example.fitmatch.models
 
+import com.example.fitmatch.data.AdherenceSummary
 import com.example.fitmatch.net.FitmatchApi
 import com.example.fitmatch.net.PredictBody
 import com.example.fitmatch.data.PlanDTO
@@ -86,4 +86,73 @@ class PlanRepositoryImpl(
 
         return plan
     }
+
+
+    override suspend fun fetchLatestFeatures(uid: String): Map<String, Any?> {
+        val snap = db.collection("users").document(uid)
+            .collection("features")
+            .orderBy("submitted_at", Query.Direction.DESCENDING)
+            .limit(1)
+            .get()
+            .await()
+        return snap.documents.firstOrNull()?.data ?: emptyMap()
+    }
+
+    override suspend fun computeWeeklyAdherence(
+        uid: String, planId: String, weekStartMs: Long, weekEndMs: Long
+    ): AdherenceSummary {
+        val logs = db.collection("users").document(uid)
+            .collection("workout_logs")
+            .whereEqualTo("plan_id", planId)
+            .whereGreaterThanOrEqualTo("date", weekStartMs) // date = epoch millis (number)
+            .whereLessThan("date", weekEndMs)
+            .get().await()
+
+        var totalDays = 0
+        var doneDays = 0
+        var volAccum = 0.0
+        var intAccum = 0.0
+
+        for (d in logs.documents) {
+            totalDays++
+            val ex = (d.getLong("exercises_count") ?: 0L).toInt()
+            val exDone = (d.getLong("exercises_completed") ?: 0L).toInt()
+            val vol = d.getDouble("volume_ratio") ?: 1.0   // client: actual/prescribed
+            val intr = d.getDouble("intensity_ratio") ?: 1.0
+
+            if (ex > 0 && exDone >= (0.7 * ex)) doneDays++
+            volAccum += vol
+            intAccum += intr
+        }
+
+        val completion = if (totalDays == 0) 0.0 else doneDays.toDouble() / totalDays
+        val volScale = (if (totalDays == 0) 1.0 else volAccum / totalDays).coerceIn(0.85, 1.15)
+        val intScale = (if (totalDays == 0) 1.0 else intAccum / totalDays).coerceIn(0.90, 1.10)
+        val missed = (7 - doneDays).coerceAtLeast(0)
+
+        return AdherenceSummary(
+            plan_id = planId,
+            year_week = yearWeekLabel(weekStartMs),
+            completion_pct = completion,
+            volume_scale = volScale,
+            intensity_scale = intScale,
+            missed_days = missed,
+            soreness_flag = false
+        )
+    }
+
+    override suspend fun saveAdherenceSummary(uid: String, s: AdherenceSummary) {
+        db.collection("users").document(uid)
+            .collection("adherence_summaries")
+            .document("${s.plan_id}_${s.year_week}")
+            .set(s).await()
+    }
+
+    private fun yearWeekLabel(ms: Long): String {
+        val cal = java.util.Calendar.getInstance().apply { timeInMillis = ms }
+        val y = cal.get(java.util.Calendar.YEAR)
+        val w = cal.get(java.util.Calendar.WEEK_OF_YEAR)
+        return "%04d-W%02d".format(y, w)
+    }
+
 }

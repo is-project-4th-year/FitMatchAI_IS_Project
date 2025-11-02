@@ -21,6 +21,9 @@ class NavigationManager(private val navController: NavHostController) {
             launchSingleTop = true
         }
     }
+    fun openWorkoutLog(planId: String, day: Int, dateMillis: Long = System.currentTimeMillis()) {
+        navController.navigate("workoutLog/$planId/$day/$dateMillis")
+    }
 
     fun navigateToGoals(){
         navController.navigate("GoalScreen") {

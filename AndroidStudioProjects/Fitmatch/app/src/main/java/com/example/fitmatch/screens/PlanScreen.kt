@@ -2,6 +2,7 @@ package com.example.fitmatch.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -30,6 +31,7 @@ import com.google.firebase.auth.FirebaseAuth
 import androidx.compose.ui.text.input.KeyboardType
 import com.example.fitmatch.data.Goal
 import com.example.fitmatch.util.estimateCalorieTarget
+import com.example.fitmatch.viewmodel.PlanUiState
 
 @Composable
 fun PlanScreen(
@@ -125,8 +127,9 @@ fun PlanScreen(
         }
 
         when (tab) {
-            0 -> QuickSelectSection(ui = ui)
-            1 -> CustomEntrySectionStyled(planVm = planVm,
+            0 -> QuickSelectSection(ui = ui, navigationManager = navigationManager)
+            1 -> CustomEntrySectionStyled(
+                planVm = planVm,
                 uiLoading = ui.loading,
                 uiError = ui.error,
                 activeGoals = activeGoals)
@@ -137,7 +140,7 @@ fun PlanScreen(
 /* ------------ Quick Select (cards feed) ------------ */
 
 @Composable
-private fun QuickSelectSection(ui: com.example.fitmatch.viewmodel.PlanUiState) {
+private fun QuickSelectSection(ui: PlanUiState,navigationManager: NavigationManager ) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -163,7 +166,12 @@ private fun QuickSelectSection(ui: com.example.fitmatch.viewmodel.PlanUiState) {
             val byDay = latest.exercises.groupBy { it.day }.toSortedMap()
             byDay.forEach { (day, list) ->
                 item(key = "day_$day") {
-                    WorkoutDayCard(day = day, items = list)
+                    Box(Modifier
+                        .fillMaxWidth()
+                        .clickable{navigationManager.openWorkoutLog(planId = latest.plan_id,day = day)}
+                    ){
+                        WorkoutDayCard(day = day, items = list)
+                    }
                 }
             }
             item {

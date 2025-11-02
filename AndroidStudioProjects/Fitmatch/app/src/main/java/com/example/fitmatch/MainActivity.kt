@@ -48,6 +48,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 import com.example.fitmatch.Viewmodels.GoalsViewModel
 import com.example.fitmatch.models.GoalsRepository
 import com.example.fitmatch.net.NetworkModule
@@ -111,6 +113,14 @@ class MainActivity : ComponentActivity() {
                 val navController = rememberNavController()
                 navigationManager = remember { NavigationManager(navController) }
                 Surface {
+                    val repo = remember {
+                        PlanRepositoryImpl(
+                            db = FirebaseFirestore.getInstance(),
+                            api = NetworkModule.api
+                        )
+                    }
+                    val planFactory = remember { PlanViewModelFactory(repo, auth) }
+                    val planVm: PlanViewModel = viewModel(factory = planFactory)
                     NavHost(navController, startDestination = "splash") {
 
                         composable("splash") { SplashScreen(navController) }
@@ -120,14 +130,18 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("HomeScreen") {
-                            HomeScreen(navigationManager = navigationManager, auth= auth)
+                            HomeScreen(navigationManager = navigationManager, auth = auth)
                         }
 
                         composable("ProfileScreen") {
-                            ProfileScreen(navigationManager = navigationManager, viewModel = viewModel())
+                            ProfileScreen(
+                                navigationManager = navigationManager,
+                                viewModel = viewModel()
+                            )
                         }
                         composable("ProgressScreen") {
-                            ProgressScreen(navigationManager = navigationManager,
+                            ProgressScreen(
+                                navigationManager = navigationManager,
                                 viewModel = viewModel()
                             )
                         }
@@ -140,15 +154,8 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        composable ( "PlanScreen" ){
-                            val repo = remember {
-                                PlanRepositoryImpl(db = FirebaseFirestore.getInstance(),
-                                    api = NetworkModule.api)
-                            }
-                            val planFactory =
-                                remember{ PlanViewModelFactory(repo,FirebaseAuth.getInstance()) }
-                            val planVm: PlanViewModel = viewModel(factory = planFactory)
-                            val goalsFactory= remember {
+                        composable("PlanScreen") {
+                            val goalsFactory = remember {
                                 object : ViewModelProvider.Factory {
                                     @Suppress("UNCHECKED_CAST")
                                     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -158,9 +165,11 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             }
-                            val goalsVm: GoalsViewModel = viewModel (factory = goalsFactory)
-                        PlanScreen(navigationManager = navigationManager, planVm = planVm,
-                            goalsVm =goalsVm )
+                            val goalsVm: GoalsViewModel = viewModel(factory = goalsFactory)
+                            PlanScreen(
+                                navigationManager = navigationManager, planVm = planVm,
+                                goalsVm = goalsVm
+                            )
                         }
 
                         composable("SignUp") {
@@ -184,8 +193,34 @@ class MainActivity : ComponentActivity() {
                         composable("otp/{vid}/{phone}") { backStack ->
                             val vid = backStack.arguments?.getString("vid") ?: ""
                             val phone = backStack.arguments?.getString("phone") ?: ""
-                            OtpVerifyScreen(auth = auth, navigationManager = navigationManager, verificationId = vid, phoneNumber = phone)
+                            OtpVerifyScreen(
+                                auth = auth,
+                                navigationManager = navigationManager,
+                                verificationId = vid,
+                                phoneNumber = phone
+                            )
                         }
+                        composable(
+                            route = "workoutLog/{planId}/{day}/{dateMillis}",
+                            arguments = listOf(
+                                navArgument("planId") { type = NavType.StringType },
+                                navArgument("day") { type = NavType.IntType },
+                                navArgument("dateMillis") { type = NavType.LongType },
+                            )
+                        ) { backStackEntry ->
+                            val planId = backStackEntry.arguments?.getString("planId")!!
+                            val day = backStackEntry.arguments?.getInt("day")!!
+                            val dateMillis = backStackEntry.arguments?.getLong("dateMillis")!!
+
+                            WorkoutLogScreen(
+                                planId = planId,
+                                day = day,
+                                dateMillis = dateMillis,
+                                navigationManager = navigationManager,
+                                 planVm = planVm
+                            )
+                        }
+
 
                     }
                 }

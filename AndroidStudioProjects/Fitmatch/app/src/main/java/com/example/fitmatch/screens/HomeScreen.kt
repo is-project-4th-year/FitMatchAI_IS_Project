@@ -174,7 +174,7 @@ fun HomeScreen(navigationManager: NavigationManager, auth: FirebaseAuth) {
                 Spacer(Modifier.height(12.dp))
                 QuickActionCard("Add your Plan", "Log your latest workout", FMGreen,  onClick = { navigationManager.navigateToPlan() })
                 Spacer(Modifier.height(10.dp))
-                QuickActionCard("View Recommendations", "AI-powered insights", FMLightBlue)
+                QuickActionCard("View Recommendations", "AI-powered insights", FMLightBlue, onClick= {navigationManager.navigateToNutrition()})
                 Spacer(Modifier.height(10.dp))
                 QuickActionCard("Track Progress", "View your analytics", FMLightOrange)}
 

@@ -138,6 +138,7 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     val planFactory = remember { PlanViewModelFactory(repo, auth) }
+
                     val planVm: PlanViewModel = viewModel(factory = planFactory)
                     NavHost(navController, startDestination = "splash") {
 
@@ -212,6 +213,13 @@ class MainActivity : ComponentActivity() {
                         }
                         composable("ResetPassword") {
                             ResetPasswordScreen(navigationManager = navigationManager)
+                        }
+                        composable("NutritionScreen"){
+                            val planRepo = PlanRepositoryImpl(
+                                    db = FirebaseFirestore.getInstance(),
+                                    api = NetworkModule.api
+                                )
+                            NutritionScreen(planRepo = planRepo, navigationManager = navigationManager)
                         }
 
                         composable("otp/{vid}/{phone}") { backStack ->

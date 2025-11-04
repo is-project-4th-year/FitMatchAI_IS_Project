@@ -36,6 +36,9 @@ class NavigationManager(private val navController: NavHostController) {
             launchSingleTop = true
         }
     }
+    fun navigateToNutrition(){
+        navController.navigate("NutritionScreen")
+    }
 
 
     fun navigateToProgress(planId: String){

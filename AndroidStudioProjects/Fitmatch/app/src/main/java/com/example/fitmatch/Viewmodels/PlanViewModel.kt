@@ -2,9 +2,9 @@ package com.example.fitmatch.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.fitmatch.data.AdherenceSummary
 import com.example.fitmatch.data.PlanDTO
 import com.example.fitmatch.models.PlanRepository
+import com.example.fitmatch.data.AdherenceSummary
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,13 +19,12 @@ data class PlanUiState(
     val history: List<PlanDTO> = emptyList()
 )
 
-@Suppress("UNCHECKED_CAST")
 class PlanViewModel(
     private val repo: PlanRepository,
     private val auth: FirebaseAuth
 ) : ViewModel() {
 
-    // ---- Features that /predict expects ----
+    // The 8 required base features your /predict expects
     private val requiredBaseKeys = setOf(
         "age","height","weight","bmi",
         "goal_type","workouts_per_week","calories_avg","equipment"
@@ -33,26 +32,13 @@ class PlanViewModel(
     private val adherenceKeys = setOf("volume_scale","intensity_scale","progression_bias")
     private val allowedKeys = requiredBaseKeys + adherenceKeys
 
-    private fun sanitizeFeatures(raw: Map<String, Any?>): Map<String, Any> =
-        raw.filterKeys { it in allowedKeys }
-            .mapNotNull { (k, v) ->
-                val clean: Any? = when (v) {
-                    is Number, is String, is Boolean -> v
-                    is com.google.firebase.Timestamp -> v.seconds   // or v.toDate().time
-                    else -> null
-                }
-                if (clean != null) k to clean else null
-            }.toMap()
-
-    private fun hasBaseFeatures(m: Map<String, Any?>): Boolean =
-        requiredBaseKeys.all { it in m && m[it] != null }
-
     private val _ui = MutableStateFlow(PlanUiState())
     val ui: StateFlow<PlanUiState> = _ui.asStateFlow()
 
     private fun uidOrThrow(): String =
         auth.currentUser?.uid ?: throw IllegalStateException("User not authenticated")
 
+    /** Live history + latest plan */
     fun startObservingHistory() {
         val uid = runCatching { uidOrThrow() }.getOrElse {
             _ui.update { it.copy(error = "Not signed in") }
@@ -65,6 +51,7 @@ class PlanViewModel(
         }
     }
 
+    /** Entry point for Custom Entry -> generates fresh plan (week_index=0 / day_offset=0). */
     fun generateFromMetrics(
         age: Int,
         heightCm: Double,
@@ -78,7 +65,7 @@ class PlanViewModel(
         val uid = runCatching { uidOrThrow() }.getOrElse {
             _ui.update { it.copy(error = "Not signed in") }; return
         }
-        val features: Map<String, Any?> = mapOf(
+        val features: Map<String, Any> = mapOf(
             "age" to age,
             "height" to heightCm,
             "weight" to weightKg,
@@ -88,10 +75,16 @@ class PlanViewModel(
             "calories_avg" to caloriesAvg,
             "equipment" to equipment.lowercase()
         )
+
         viewModelScope.launch {
             _ui.update { it.copy(loading = true, error = null) }
             try {
-                val plan = repo.generateAndSavePlan(uid, features as Map<String, Any>)
+                val plan = repo.generateAndSavePlan(
+                    userId = uid,
+                    features = features,
+                    dayOffset = 0,
+                    weekIndex = 0
+                )
                 _ui.update { it.copy(loading = false, latest = plan) }
             } catch (e: Exception) {
                 _ui.update { it.copy(loading = false, error = e.message ?: "Failed") }
@@ -99,9 +92,7 @@ class PlanViewModel(
         }
     }
 
-    fun clearError() { _ui.update { it.copy(error = null) } }
-
-    /** Prefill for PlanScreen (runs in coroutine, uses repository). */
+    /** Provide latest features to the PlanScreen for prefill. */
     fun fetchLatestFeatures(
         onResult: (Map<String, Any?>) -> Unit,
         onError: (Throwable) -> Unit = {}
@@ -111,7 +102,7 @@ class PlanViewModel(
         }
         viewModelScope.launch {
             try {
-                val map = repo.fetchLatestFeatures(uid)  // already sanitized to base fields in repo
+                val map = repo.fetchLatestFeatures(uid)          // already base-only in repo
                 onResult(map)
             } catch (e: Exception) {
                 onError(e)
@@ -119,23 +110,30 @@ class PlanViewModel(
         }
     }
 
-    /** Re-generate plan using adherence summary (merges base features + adherence scales). */
+    /** Re-generate plan using adherence; shifts days to continue where the user left off. */
     fun regenWithAdherence(planId: String, summary: AdherenceSummary) {
         viewModelScope.launch {
             _ui.update { it.copy(loading = true, error = null) }
             try {
                 val uid = uidOrThrow()
 
-                val base = repo.fetchLatestFeatures(uid) // Map<String, Any?>
-                if (!hasBaseFeatures(base)) {
+                // pull most recent base features
+                val base = repo.fetchLatestFeatures(uid)
+                if (!requiredBaseKeys.all { base[it] != null }) {
                     _ui.update {
-                        it.copy(loading = false,
-                            error = "No saved base features. Create a plan from Custom Entry first.")
+                        it.copy(loading = false, error = "No saved base features. Create a plan first.")
                     }
                     return@launch
                 }
 
-                val merged = base.toMutableMap().apply {
+                val latest = ui.value.latest
+                val wpw = latest?.microcycle_days?.coerceAtLeast(1) ?: 3
+                val lastDay = latest?.exercises?.maxOfOrNull { ex -> ex.day } ?: 0
+                val currentWeekIndex = latest?.week_index ?: (lastDay / wpw)
+                val nextWeekIndex = currentWeekIndex + 1
+                val dayOffset = lastDay // continue counting days globally
+
+                val features = base.toMutableMap().apply {
                     this["volume_scale"] = summary.volume_scale
                     this["intensity_scale"] = summary.intensity_scale
                     this["progression_bias"] = when {
@@ -143,26 +141,27 @@ class PlanViewModel(
                         summary.completion_pct >= 0.75 -> 0
                         else -> -1
                     }
-                }
+                } // map contains only primitives/strings
 
-                val clean = sanitizeFeatures(merged)
-                val plan = repo.generateAndSavePlan(uid, clean)
-                _ui.update { it.copy(loading = false, latest = plan, error = null) }
+                val plan = repo.generateAndSavePlan(
+                    userId = uid,
+                    features = features as Map<String, Any>,
+                    dayOffset = dayOffset,
+                    weekIndex = nextWeekIndex
+                )
+                _ui.update { it.copy(loading = false, latest = plan) }
             } catch (e: Exception) {
-                val msg = e.message ?: "Regen failed"
-                val friendly = if (msg.contains("Missing feature", ignoreCase = true))
-                    "Could not regenerate: missing base features. Create a plan from Custom Entry first."
-                else msg
-                _ui.update { it.copy(loading = false, error = friendly) }
+                _ui.update { it.copy(loading = false, error = e.message ?: "Regen failed") }
             }
         }
     }
 
+    /** Finalize a week => compute adherence => (gate) => persist summary => regenerate next week. */
     fun finalizeWeekAndRegenerate(
         weekStartMs: Long,
         weekEndMs: Long,
-        workoutsPerWeek: Int? = null,  // from active goal (optional)
-        goalEndMs: Long? = null        // from active goal (optional)
+        workoutsPerWeek: Int?,  // optional (used only for fallback calc)
+        goalEndMs: Long?        // optional (block if goal is over)
     ) {
         viewModelScope.launch {
             val uid = runCatching { uidOrThrow() }.getOrElse {
@@ -172,50 +171,26 @@ class PlanViewModel(
                 _ui.update { it.copy(error = "No active plan") }; return@launch
             }
 
-            // Optional: stop if the goal window is over
-            if (goalEndMs != null && weekStartMs >= goalEndMs) {
+            if (goalEndMs != null && System.currentTimeMillis() > goalEndMs) {
                 _ui.update { it.copy(error = "Goal period ended. Create a new goal to continue.") }
                 return@launch
             }
 
             _ui.update { it.copy(loading = true, error = null) }
             try {
-                // 1) summarize adherence for this week (your existing repo logic)
                 val summary = repo.computeWeeklyAdherence(uid, latest.plan_id, weekStartMs, weekEndMs)
-                repo.saveAdherenceSummary(uid, summary)
 
-                // 2) If adherence is too low, hold progression
                 if (summary.completion_pct < 0.40) {
+                    repo.saveAdherenceSummary(uid, summary)
                     _ui.update { it.copy(loading = false, error = "Low adherence this week; holding progression.") }
                     return@launch
                 }
 
-                // 3) pull base features and merge adherence adjustments
-                val base = repo.fetchLatestFeatures(uid)
-                val merged = base.toMutableMap().apply {
-                    this["volume_scale"] = summary.volume_scale
-                    this["intensity_scale"] = summary.intensity_scale
-                    this["progression_bias"] = when {
-                        summary.completion_pct >= 0.90 -> 1
-                        summary.completion_pct >= 0.75 -> 0
-                        else -> -1
-                    }
-                }
+                repo.saveAdherenceSummary(uid, summary)
 
-                // 4) Compute next day offset + week index
-                //    We use the highest day number we've ever shown, then continue.
-                val nextOffset = latest.exercises.maxOfOrNull { it.day } ?: 0
-                val nextWeek   = (latest.week_index) + 1
+                // Delegate to the regen function (ensures single code path)
+                regenWithAdherence(latest.plan_id, summary)
 
-                // 5) Generate next week's plan with shifted days
-                val plan = repo.generateAndSavePlan(
-                    userId = uid,
-                    features = merged as Map<String, Any>,
-                    dayOffset = nextOffset,
-                    weekIndex = nextWeek
-                )
-
-                _ui.update { it.copy(loading = false, latest = plan, error = null) }
             } catch (e: Exception) {
                 _ui.update { it.copy(loading = false, error = e.message ?: "Weekly finalize failed") }
             }

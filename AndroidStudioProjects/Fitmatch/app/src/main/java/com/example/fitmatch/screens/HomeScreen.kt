@@ -23,20 +23,40 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.fitmatch.Components.FitMatchHeader
 import com.example.fitmatch.R
+import com.example.fitmatch.models.PlanRepositoryImpl
 import com.example.fitmatch.navigations.NavigationManager
+import com.example.fitmatch.net.NetworkModule
+import com.example.fitmatch.viewmodel.PlanViewModel
+import com.example.fitmatch.viewmodel.PlanViewModelFactory
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 
 @Composable
 fun HomeScreen(navigationManager: NavigationManager, auth: FirebaseAuth) {
-    val user = auth.currentUser
-    if (user == null) {
+    val currentUser = auth.currentUser
+    if (currentUser == null) {
         LaunchedEffect(Unit) { navigationManager.navigateToLogin() }
         return
     }
+    // 🔽 Create PlanViewModel here (with factory)
+    val repo = remember {
+        PlanRepositoryImpl(
+            db = FirebaseFirestore.getInstance(),
+            api = NetworkModule.api
+        )
+    }
+    val planVm: PlanViewModel = viewModel(
+        factory = PlanViewModelFactory(repo, FirebaseAuth.getInstance())
+    )
 
-    val userName = user.displayName ?: "User"
+    LaunchedEffect(Unit) { planVm.startObservingHistory()}
+
+
+    val userName = currentUser.displayName
 
     val FMNavy = Color(0xFF0B0D1A)
     val FMGreen = Color(0xFF1EC87C)
@@ -66,7 +86,7 @@ fun HomeScreen(navigationManager: NavigationManager, auth: FirebaseAuth) {
                 ) {
                     // 👋 Welcome message
                     Text(
-                        text = "Welcome back, Charles Maina!",
+                        text = "Welcome back, $userName!",
                         color = Color.White,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold
@@ -134,7 +154,10 @@ fun HomeScreen(navigationManager: NavigationManager, auth: FirebaseAuth) {
 
         }
 
-        ,bottomBar = { FitMatchBottomNav(navigationManager) },
+        ,bottomBar = { FitMatchBottomNav(
+            navigationManager,
+            planVm = planVm
+        ) },
         containerColor = Color.White
     ) { innerPadding ->
         Column(
@@ -153,8 +176,7 @@ fun HomeScreen(navigationManager: NavigationManager, auth: FirebaseAuth) {
                 Spacer(Modifier.height(10.dp))
                 QuickActionCard("View Recommendations", "AI-powered insights", FMLightBlue)
                 Spacer(Modifier.height(10.dp))
-                QuickActionCard("Track Progress", "View your analytics", FMLightOrange)
-            }
+                QuickActionCard("Track Progress", "View your analytics", FMLightOrange)}
 
             // ------------------ LATEST RECOMMENDATION ------------------
             Spacer(Modifier.height(24.dp))
@@ -281,7 +303,10 @@ fun QuickActionCard(title: String, subtitle: String, background: Color, onClick:
 
 // ----------- BOTTOM NAV -----------
 @Composable
-fun FitMatchBottomNav(navigationManager: NavigationManager) {
+fun FitMatchBottomNav(navigationManager: NavigationManager, planVm: PlanViewModel) {
+    val ui by planVm.ui.collectAsState()
+
+    val planId = ui.latest?.plan_id
     val selectedIndex = remember { mutableStateOf(0) }
 
     val activeColor = Color(0xFF1EC87C)
@@ -303,7 +328,7 @@ fun FitMatchBottomNav(navigationManager: NavigationManager) {
                     when (label) {
                         "Home" -> navigationManager.navigateToHomeScreen()
                         "Goals" -> navigationManager.navigateToGoals()
-                        "Progress" -> navigationManager.navigateToProgress()
+                        "Progress" -> planId?.let { navigationManager.navigateToProgress(it) }
                         "Profile" -> navigationManager.navigateToProfileScreen()
                     }
                 },

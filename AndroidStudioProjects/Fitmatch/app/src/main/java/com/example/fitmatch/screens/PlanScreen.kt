@@ -32,12 +32,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import com.example.fitmatch.data.Goal
 import com.example.fitmatch.util.estimateCalorieTarget
 import com.example.fitmatch.viewmodel.PlanUiState
+import com.google.firebase.Timestamp
 
 @Composable
-fun PlanScreen(
-    navigationManager: NavigationManager,
-    planVm: PlanViewModel = viewModel(),
-    goalsVm: GoalsViewModel = viewModel(
+fun PlanScreen(navigationManager: NavigationManager, planVm: PlanViewModel,
+               goalsVm: GoalsViewModel = viewModel(
         factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -99,9 +98,27 @@ fun PlanScreen(
                 )
             }
         }
+        if (ui.loading) {
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp)
+            )
+        }
+        ui.error?.let { msg ->
+            Text(
+                msg,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+            )
+        }
 
         // --- segmented toggle like the screenshots ---
-        var tab by rememberSaveable { mutableStateOf(0) } // 0=Quick Select, 1=Custom Entry
+        var tab by rememberSaveable { mutableStateOf(0) }
+        LaunchedEffect(ui.latest?.plan_id) {
+            if(ui.latest!=null) tab = 0
+        }
+        // 0=Quick Select, 1=Custom Entry
         Row(
             modifier = Modifier
                 .padding(12.dp)
@@ -112,14 +129,14 @@ fun PlanScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             SegPill(
-                label = "Quick Select",
+                label = "Current Plan",
                 selected = tab == 0,
                 onClick = { tab = 0 },
                 modifier = Modifier.weight(1f)
             )
             Spacer(Modifier.width(8.dp))
             SegPill(
-                label = "Custom Entry",
+                label = "Custom Workout",
                 selected = tab == 1,
                 onClick = { tab = 1 },
                 modifier = Modifier.weight(1f)
@@ -127,65 +144,90 @@ fun PlanScreen(
         }
 
         when (tab) {
-            0 -> QuickSelectSection(ui = ui, navigationManager = navigationManager)
-            1 -> CustomEntrySectionStyled(
-                planVm = planVm,
-                uiLoading = ui.loading,
+            0 -> QuickSelectSection(
+                ui = ui,
+                navigationManager = navigationManager,
+                onFinalizeWeek = { startMs, endMs ->
+                    val g = activeGoals.firstOrNull()
+                    val workouts = g?.workoutsPerWeek
+                    val goalEndMs = when (val e = g?.endDate) {
+                        is Long -> e
+                        is Timestamp -> e.toDate().time
+                        else -> null
+                    }
+                    planVm.finalizeWeekAndRegenerate(startMs, endMs, workouts, goalEndMs)
+                }
+            )
+            1 -> CustomEntrySectionStyled(planVm = planVm,uiLoading = ui.loading,
                 uiError = ui.error,
                 activeGoals = activeGoals)
         }
     }
 }
 
-/* ------------ Quick Select (cards feed) ------------ */
 
-@Composable
-private fun QuickSelectSection(ui: PlanUiState,navigationManager: NavigationManager ) {
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        contentPadding = PaddingValues(bottom = 20.dp)
-    ) {
-        if (ui.error != null) {
-            item {
-                Text(ui.error, color = MaterialTheme.colorScheme.error)
-            }
-        }
-
-        val latest = ui.latest
-        if (latest == null) {
-            item {
-                Text(
-                    "No plan yet. Switch to Custom Entry to create one.",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
-        } else {
-            val byDay = latest.exercises.groupBy { it.day }.toSortedMap()
-            byDay.forEach { (day, list) ->
-                item(key = "day_$day") {
-                    Box(Modifier
-                        .fillMaxWidth()
-                        .clickable{navigationManager.openWorkoutLog(planId = latest.plan_id,day = day)}
-                    ){
-                        WorkoutDayCard(day = day, items = list)
-                    }
-                }
-            }
-            item {
-                if (latest.notes.isNotBlank()) {
-                    Text(
-                        latest.notes,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(top = 4.dp, start = 4.dp, end = 4.dp)
-                    )
-                }
-            }
-        }
-    }
-}
+//@Composable
+//private fun QuickSelectSection(ui: PlanUiState,navigationManager: NavigationManager,
+//                               onFinalizeWeek:(Long,Long) ->Unit) {
+//    LazyColumn(
+//        modifier = Modifier
+//            .fillMaxSize()
+//            .padding(horizontal = 12.dp),
+//        verticalArrangement = Arrangement.spacedBy(12.dp),
+//        contentPadding = PaddingValues(bottom = 20.dp)
+//    ) {
+//        if (ui.error != null) {
+//            item {
+//                Text(ui.error, color = MaterialTheme.colorScheme.error)
+//            }
+//        }
+//
+//        val latest = ui.latest
+//        if (latest == null) {
+//            item {
+//                Text(
+//                    "No plan yet. Switch to Custom Entry to create one.",
+//                    style = MaterialTheme.typography.bodyMedium
+//                )
+//            }
+//        } else {
+//            val byDay = latest.exercises.groupBy { it.day }.toSortedMap()
+//            byDay.forEach { (day, list) ->
+//                item(key = "day_$day") {
+//                    Box(Modifier
+//                        .fillMaxWidth()
+//                        .clickable{navigationManager.openWorkoutLog(planId = latest.plan_id,day = day)}
+//                    ){
+//                        WorkoutDayCard(day = day, items = list)
+//                    }
+//                }
+//            }
+//            item {
+//                if (latest.notes.isNotBlank()) {
+//                    Text(
+//                        latest.notes,
+//                        style = MaterialTheme.typography.bodySmall,
+//                        modifier = Modifier.padding(top = 4.dp, start = 4.dp, end = 4.dp)
+//                    )
+//                }
+//            }
+//        }
+//        item {
+//            Spacer(Modifier.height(4.dp))
+//            Button(
+//                modifier = Modifier.fillMaxWidth().height(48.dp),
+//                onClick = {
+//                    val (startMs, endMs) = currentWeekBoundsMs()
+//                    onFinalizeWeek(startMs, endMs)
+//                },
+//                shape = RoundedCornerShape(12.dp),
+//                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF19D27A), contentColor = Color.White)
+//            ) {
+//                Text("Finalize This Week")
+//            }
+//        }
+//    }
+//}
 
 @Composable
 private fun WorkoutDayCard(day: Int, items: List<ExerciseDTO>) {
@@ -216,7 +258,9 @@ private fun ExerciseRowCard(ex: ExerciseDTO) {
             .fillMaxWidth()
             .border(1.dp, Color(0xFFE9ECF3), RoundedCornerShape(12.dp))
     ) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(
+            Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)) {
             // Title + tag chip
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(ex.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
@@ -463,7 +507,7 @@ fun CustomEntrySectionStyled(planVm: PlanViewModel, uiLoading: Boolean,
     }
 }
 
-/* ------------ tiny reusable UI helpers (purely visual) ------------ */
+
 
 @Composable
 private fun SegPill(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
@@ -505,6 +549,107 @@ private fun ChipPill(text: String, selected: Boolean, onClick: () -> Unit) {
                 style = MaterialTheme.typography.labelMedium,
                 color = if (selected) Color(0xFF16A05F) else Color(0xFF606D80)
             )
+        }
+    }
+
+}
+private fun currentWeekBoundsMs(): Pair<Long, Long> {
+    val cal = java.util.Calendar.getInstance() // uses device TZ (e.g., Africa/Nairobi)
+    cal.firstDayOfWeek = java.util.Calendar.MONDAY
+
+    // Start of week (Mon 00:00:00.000)
+    cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+    cal.set(java.util.Calendar.MINUTE, 0)
+    cal.set(java.util.Calendar.SECOND, 0)
+    cal.set(java.util.Calendar.MILLISECOND, 0)
+    cal.set(java.util.Calendar.DAY_OF_WEEK, cal.firstDayOfWeek)
+    val start = cal.timeInMillis
+
+    // End of week (Sun 23:59:59.999)
+    cal.add(java.util.Calendar.DAY_OF_MONTH, 6)
+    cal.set(java.util.Calendar.HOUR_OF_DAY, 23)
+    cal.set(java.util.Calendar.MINUTE, 59)
+    cal.set(java.util.Calendar.SECOND, 59)
+    cal.set(java.util.Calendar.MILLISECOND, 999)
+    val end = cal.timeInMillis
+
+    return start to end
+}
+
+@Composable
+private fun QuickSelectSection(
+    ui: PlanUiState,
+    navigationManager: NavigationManager,
+    onFinalizeWeek:(Long,Long)->Unit
+) {
+    val snackbar = remember { SnackbarHostState() }
+    var lastSeenCreatedAt by remember { mutableStateOf(ui.latest?.created_at_ms ?: 0L) }
+
+    LaunchedEffect(ui.latest?.created_at_ms) {
+        val nowTs = ui.latest?.created_at_ms ?: 0L
+        if (nowTs != 0L && lastSeenCreatedAt != 0L && nowTs != lastSeenCreatedAt) {
+            snackbar.showSnackbar("New plan generated")
+        }
+        if (nowTs != 0L) lastSeenCreatedAt = nowTs
+    }
+
+    Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { innerPad ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPad)
+                .padding(horizontal = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(bottom = 20.dp)
+        ) {
+            ui.error?.let { err ->
+                item { Text(err, color = MaterialTheme.colorScheme.error) }
+            }
+
+            val latest = ui.latest
+            if (latest == null) {
+                item { Text("No plan yet. Switch to Custom Entry to create one.") }
+            } else {
+                item {
+                    val rel = android.text.format.DateUtils.getRelativeTimeSpanString(
+                        latest.created_at_ms, System.currentTimeMillis(),
+                        android.text.format.DateUtils.MINUTE_IN_MILLIS
+                    )
+                    Text(
+                        "Plan: ${latest.plan_id} • ${latest.microcycle_days} days • generated $rel",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+                val byDay = latest.exercises.groupBy { it.day }.toSortedMap()
+                byDay.forEach { (day, list) ->
+                    item(key = "day_$day") {
+                        Box(Modifier
+                            .fillMaxWidth()
+                            .clickable{navigationManager.openWorkoutLog(planId = latest.plan_id,day = day)}
+                        ){
+                            WorkoutDayCard(day = day, items = list)
+                        }
+                    }
+                }
+                item {
+                    if (latest.notes.isNotBlank()) {
+                        Text(
+                            latest.notes,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(top = 4.dp, start = 4.dp, end = 4.dp)
+                        )
+                    }
+                }
+            }
+
+            item {
+                Button(
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    onClick = { val (s,e)=currentWeekBoundsMs(); onFinalizeWeek(s,e) },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF19D27A), contentColor = Color.White)
+                ) { Text("Finalize This Week") }
+            }
         }
     }
 }

@@ -6,7 +6,7 @@ import com.example.fitmatch.models.PlanRepository
 import com.google.firebase.auth.FirebaseAuth
 
 class PlanViewModelFactory(
-    private val repo: PlanRepository,
+    val repo: PlanRepository,
     private val auth: FirebaseAuth
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")

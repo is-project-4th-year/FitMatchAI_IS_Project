@@ -19,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -38,6 +39,10 @@ import com.google.firebase.auth.PhoneAuthProvider
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
+
+
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -103,13 +108,27 @@ fun SignUpScreen(
                 underlineColor = FMGreen
             )
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(34.dp))
 
-            HorizontalPager(state = pagerState, modifier = Modifier.fillMaxWidth()) { page ->
-                when (page) {
-                    0 -> EmailSignUpForm(auth, navigationManager, FMFieldBg, FMNavy, FMMuted)
-                    1 -> PhoneSignUpFormWithOtpDialog(auth, FMFieldBg, FMNavy, FMMuted, FMGreen, navigationManager)
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+
+            ) { page ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(bottom = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ){
+                    when (page) {
+                        0 -> EmailSignUpForm(auth, navigationManager, FMFieldBg, FMNavy, FMMuted)
+                        1 -> PhoneSignUpFormWithOtpDialog(auth, FMFieldBg, FMNavy, FMMuted, FMGreen, navigationManager)
+                    }
                 }
+
             }
 
             // --- Divider + Social row ---
@@ -216,11 +235,25 @@ private fun EmailSignUpForm(
             }
             loading = true
             auth.createUserWithEmailAndPassword(email, password)
-                .addOnCompleteListener { t ->
-                    loading = false
-                    if (t.isSuccessful) navigationManager.navigateToHomeScreen()
-                    else message = t.exception?.message ?: "Sign-up failed"
-                }
+                        .addOnCompleteListener { t ->
+                            loading = false
+                            if (t.isSuccessful) {
+                                val user = t.result?.user
+                                val uid = user?.uid ?: return@addOnCompleteListener
+                                val db = FirebaseFirestore.getInstance()
+                                val profile = mapOf(
+                                    "display_name" to (user.displayName ?: ""),
+                                    "email" to (user.email ?: email),
+                                    "photo_url" to (user.photoUrl?.toString() ?: ""),
+                                    "created_at" to com.google.firebase.Timestamp.now()
+                                )
+                                db.collection("users").document(uid).set(profile)
+                                    .addOnSuccessListener { navigationManager.navigateToHomeScreen() }
+                                    .addOnFailureListener { e -> /* show error */ }
+                            } else {
+                                message = t.exception?.message ?: "Sign-up failed"
+                            }
+                        }
         },
         modifier = Modifier.fillMaxWidth(),
         colors = ButtonDefaults.buttonColors(containerColor = navy),

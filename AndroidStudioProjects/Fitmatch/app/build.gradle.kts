@@ -100,6 +100,10 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4")
     implementation("com.google.firebase:firebase-storage-ktx")
 
+//    implementation("com.patrykandpatrick.vico:compose:2.0.1")
+//    implementation("com.patrykandpatrick.vico:core:2.0.1")
+//    implementation("com.patrykandpatrick.vico:compose-m3:2.0.1")
+    implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.retrofit2:converter-moshi:2.11.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")

@@ -2,13 +2,13 @@ package com.example.fitmatch.Viewmodels
 
 import android.net.Uri
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
 
 data class UserProfile(
     val fullName: String = "",
@@ -48,20 +48,19 @@ class ProfileViewModel : ViewModel() {
     }
 
     fun ensureUserDoc() {
-        val auth = FirebaseAuth.getInstance()
-        val uid = auth.currentUser?.uid ?: return
-        val db = FirebaseFirestore.getInstance()
-        val user = auth.currentUser
+        val user = auth.currentUser ?: return
+        val uid = user.uid
 
         val defaults = hashMapOf(
-            "fullName" to (user?.displayName ?: "User"),
-            "email" to (user?.email ?: ""),
+            "fullName" to (user.displayName ?: "User"),
+            "email" to (user.email ?: ""),
             "phone" to "",
+            "profileImageUrl" to "",
             "workouts" to 0,
             "streak" to 0,
             "goals" to 0,
             "totalTime" to "0h",
-            "profileImageUrl" to ""
+            "created_at" to Timestamp.now()
         )
 
         db.collection("users").document(uid).get().addOnSuccessListener { doc ->
@@ -74,18 +73,38 @@ class ProfileViewModel : ViewModel() {
         }
     }
 
-
+    /** Only allow fields permitted by rules. For email, also update FirebaseAuth. */
     fun updateField(field: String, value: String) {
-        val uid = auth.currentUser?.uid ?: return
-        db.collection("users").document(uid).update(field, value)
-            .addOnSuccessListener {
-                _userProfile.value = when (field) {
-                    "fullName" -> _userProfile.value.copy(fullName = value)
-                    "email" -> _userProfile.value.copy(email = value)
-                    "phone" -> _userProfile.value.copy(phone = value)
-                    else -> _userProfile.value
+        val user = auth.currentUser ?: return
+        val uid = user.uid
+
+        when (field) {
+            "email" -> {
+                // Changing this only in Firestore causes mismatch; update Auth first.
+                user.updateEmail(value).addOnSuccessListener {
+                    db.collection("users").document(uid).update("email", value)
+                        .addOnSuccessListener { _userProfile.value = _userProfile.value.copy(email = value) }
                 }
             }
+            "fullName" -> {
+                // (optional) keep FirebaseAuth displayName in sync
+                user.updateProfile(UserProfileChangeRequest.Builder().setDisplayName(value).build())
+                db.collection("users").document(uid).update("fullName", value)
+                    .addOnSuccessListener { _userProfile.value = _userProfile.value.copy(fullName = value) }
+            }
+            "phone", "profileImageUrl" -> {
+                db.collection("users").document(uid).update(field, value)
+                    .addOnSuccessListener {
+                        _userProfile.value = when (field) {
+                            "phone" -> _userProfile.value.copy(phone = value)
+                            else    -> _userProfile.value.copy(profileImageUrl = value)
+                        }
+                    }
+            }
+            else -> {
+                // ignore any other field to satisfy rules
+            }
+        }
     }
 
     fun uploadProfileImage(uri: Uri) {
@@ -93,9 +112,11 @@ class ProfileViewModel : ViewModel() {
         val ref = storage.reference.child("profileImages/$uid/profile.jpg")
         ref.putFile(uri).addOnSuccessListener {
             ref.downloadUrl.addOnSuccessListener { url ->
-                db.collection("users").document(uid)
-                    .update("profileImageUrl", url.toString())
-                _userProfile.value = _userProfile.value.copy(profileImageUrl = url.toString())
+                val link = url.toString()
+                db.collection("users").document(uid).update("profileImageUrl", link)
+                    .addOnSuccessListener {
+                        _userProfile.value = _userProfile.value.copy(profileImageUrl = link)
+                    }
             }
         }
     }

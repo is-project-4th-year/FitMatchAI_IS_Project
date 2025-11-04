@@ -1,10 +1,11 @@
 package com.example.fitmatch.models
 
 import com.example.fitmatch.data.AdherenceSummary
+import com.example.fitmatch.data.ExerciseDTO
+import com.example.fitmatch.data.PlanDTO
 import com.example.fitmatch.net.FitmatchApi
 import com.example.fitmatch.net.PredictBody
-import com.example.fitmatch.data.PlanDTO
-import com.google.firebase.Timestamp
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.channels.awaitClose
@@ -17,10 +18,11 @@ class PlanRepositoryImpl(
     private val api: FitmatchApi
 ) : PlanRepository {
 
+    // -------------------- Observe saved plans --------------------
     override fun observePlans(userId: String): Flow<List<PlanDTO>> = callbackFlow {
         val ref = db.collection("users").document(userId)
             .collection("workoutplan")
-            .orderBy("created_at", Query.Direction.DESCENDING)
+            .orderBy("created_at_ms", Query.Direction.DESCENDING) // ← switch to _ms
 
         val reg = ref.addSnapshotListener { snap, err ->
             if (err != null) {
@@ -41,42 +43,105 @@ class PlanRepositoryImpl(
                             rest_sec = (it["rest_sec"] as? Number)?.toInt() ?: 0
                         )
                     }
-                    PlanDTO(
-                        prediction = (d.get("prediction") as? Number)?.toDouble() ?: 0.0,
-                        plan_id = d.getString("plan_id").orEmpty(),
+
+                    val tsMs = d.getLong("created_at_ms")
+                        ?: d.getTimestamp("created_at")?.toDate()?.time
+                        ?: 0L
+
+                    com.example.fitmatch.data.PlanDTO(
+                        prediction      = (d.get("prediction") as? Number)?.toDouble() ?: 0.0,
+                        plan_id         = d.getString("plan_id").orEmpty(),
                         microcycle_days = (d.get("microcycle_days") as? Number)?.toInt() ?: 0,
-                        exercises = exercises,
-                        notes = d.getString("notes").orEmpty(),
-                        model_version = d.getString("model_version").orEmpty()
+                        exercises       = exercises,
+                        notes           = d.getString("notes").orEmpty(),
+                        model_version   = d.getString("model_version").orEmpty(),
+                        created_at_ms   = tsMs,
+                        week_index      = (d.get("week_index") as? Number)?.toInt() ?: 0,
+                        day_offset      = (d.get("day_offset") as? Number)?.toInt() ?: 0
                     )
                 } catch (_: Exception) { null }
             } ?: emptyList()
+
             trySend(plans).isSuccess
         }
         awaitClose { reg.remove() }
     }
 
+    // -------------------- Features snapshot (base fields) --------------------
+// Only the fields your Cloud Run expects
+    private val allowedFeatureKeys = setOf(
+        "age","height","weight","bmi",
+        "goal_type","workouts_per_week","calories_avg","equipment",
+        "volume_scale","intensity_scale","progression_bias"
+    )
+
+    private fun sanitizeForApi(raw: Map<String, Any>): Map<String, Any> {
+        return raw
+            .filterKeys { it in allowedFeatureKeys } // drop status/submitted_at/anything extra
+            .mapValues { (_, v) ->
+                when (v) {
+                    is com.google.firebase.Timestamp -> v.toDate().time  // send epoch ms
+                    is Number, is String, is Boolean -> v
+                    else -> v.toString() // last resort: stringify
+                }
+            }
+    }
+    private val baseKeys = setOf(
+        "age","height","weight","bmi",
+        "goal_type","workouts_per_week","calories_avg","equipment"
+    )
+    private fun baseOnly(m: Map<String, Any>) = m.filterKeys { it in baseKeys }
+
+    private suspend fun saveFeaturesSnapshot(uid: String, features: Map<String, Any>) {
+        val payload = HashMap(features)
+        payload["submitted_at"] = FieldValue.serverTimestamp()
+        payload["status"] = "pending"
+        db.collection("users").document(uid)
+            .collection("features")
+            .add(payload)
+            .await()
+    }
+
+    // -------------------- Generate + persist plan (with day shift) --------------------
     override suspend fun generateAndSavePlan(
         userId: String,
-        features: Map<String, Any>
+        features: Map<String, Any>,
+        dayOffset: Int,
+        weekIndex: Int
     ): PlanDTO {
-        // 1) call Cloud Run
-        val plan = api.predict(PredictBody(user_id = userId, features = features))
+        // Clean for API first
+        val safe = sanitizeForApi(features)
 
-        // 2) persist to Firestore
+        // Keep a base snapshot for future regenerations (only base keys)
+        runCatching { saveFeaturesSnapshot(userId, baseOnly(safe)) }
+
+        // Call Cloud Run with safe payload (no Timestamp objects)
+        val plan = api.predict(PredictBody(user_id = userId, features = safe))
+
+        val shifted = plan.exercises.map {
+            mapOf(
+                "day" to (it.day + dayOffset),
+                "block" to it.block,
+                "name" to it.name,
+                "sets" to it.sets,
+                "reps" to it.reps,
+                "tempo" to it.tempo,
+                "rest_sec" to it.rest_sec
+            )
+        }
+
+        val nowMs = System.currentTimeMillis()
         val doc = mapOf(
-            "prediction" to plan.prediction,
-            "plan_id" to plan.plan_id,
+            "prediction"      to plan.prediction,
+            "plan_id"         to plan.plan_id,
             "microcycle_days" to plan.microcycle_days,
-            "exercises" to plan.exercises.map {
-                mapOf(
-                    "day" to it.day, "block" to it.block, "name" to it.name,
-                    "sets" to it.sets, "reps" to it.reps, "tempo" to it.tempo, "rest_sec" to it.rest_sec
-                )
-            },
-            "notes" to plan.notes,
-            "model_version" to (plan.model_version ?: ""),
-            "created_at" to Timestamp.now()
+            "exercises"       to shifted,
+            "notes"           to plan.notes,
+            "model_version"   to (plan.model_version ?: ""),
+            "created_at"      to com.google.firebase.firestore.FieldValue.serverTimestamp(),
+            "created_at_ms"   to nowMs,
+            "week_index"      to weekIndex,
+            "day_offset"      to dayOffset
         )
 
         db.collection("users").document(userId)
@@ -84,10 +149,20 @@ class PlanRepositoryImpl(
             .add(doc)
             .await()
 
-        return plan
+        return PlanDTO(
+            prediction      = plan.prediction,
+            plan_id         = plan.plan_id,
+            microcycle_days = plan.microcycle_days,
+            exercises       = plan.exercises.map { it.copy(day = it.day + dayOffset) },
+            notes           = plan.notes,
+            model_version   = plan.model_version,
+            created_at_ms   = nowMs,
+            week_index      = weekIndex,
+            day_offset      = dayOffset
+        )
     }
 
-
+    // -------------------- Latest base features --------------------
     override suspend fun fetchLatestFeatures(uid: String): Map<String, Any?> {
         val snap = db.collection("users").document(uid)
             .collection("features")
@@ -98,27 +173,32 @@ class PlanRepositoryImpl(
         return snap.documents.firstOrNull()?.data ?: emptyMap()
     }
 
+    // -------------------- Weekly adherence --------------------
     override suspend fun computeWeeklyAdherence(
-        uid: String, planId: String, weekStartMs: Long, weekEndMs: Long
+        uid: String,
+        planId: String,
+        weekStartMs: Long,
+        weekEndMs: Long
     ): AdherenceSummary {
-        val logs = db.collection("users").document(uid)
-            .collection("workout_logs")
-            .whereEqualTo("plan_id", planId)
-            .whereGreaterThanOrEqualTo("date", weekStartMs) // date = epoch millis (number)
+        val snap = db.collection("users").document(uid)
+            .collection("plan_logs").document(planId)
+            .collection("days")
+            .whereGreaterThanOrEqualTo("date", weekStartMs)
             .whereLessThan("date", weekEndMs)
-            .get().await()
+            .get()
+            .await()
 
         var totalDays = 0
         var doneDays = 0
         var volAccum = 0.0
         var intAccum = 0.0
 
-        for (d in logs.documents) {
+        for (d in snap.documents) {
             totalDays++
-            val ex = (d.getLong("exercises_count") ?: 0L).toInt()
+            val ex     = (d.getLong("exercises_count") ?: 0L).toInt()
             val exDone = (d.getLong("exercises_completed") ?: 0L).toInt()
-            val vol = d.getDouble("volume_ratio") ?: 1.0   // client: actual/prescribed
-            val intr = d.getDouble("intensity_ratio") ?: 1.0
+            val vol    = d.getDouble("volume_ratio") ?: 1.0
+            val intr   = d.getDouble("intensity_ratio") ?: 1.0
 
             if (ex > 0 && exDone >= (0.7 * ex)) doneDays++
             volAccum += vol
@@ -126,33 +206,35 @@ class PlanRepositoryImpl(
         }
 
         val completion = if (totalDays == 0) 0.0 else doneDays.toDouble() / totalDays
-        val volScale = (if (totalDays == 0) 1.0 else volAccum / totalDays).coerceIn(0.85, 1.15)
-        val intScale = (if (totalDays == 0) 1.0 else intAccum / totalDays).coerceIn(0.90, 1.10)
-        val missed = (7 - doneDays).coerceAtLeast(0)
+        val volScale   = (if (totalDays == 0) 1.0 else volAccum / totalDays).coerceIn(0.85, 1.15)
+        val intScale   = (if (totalDays == 0) 1.0 else intAccum / totalDays).coerceIn(0.90, 1.10)
+        val missed     = (7 - doneDays).coerceAtLeast(0)
 
         return AdherenceSummary(
-            plan_id = planId,
-            year_week = yearWeekLabel(weekStartMs),
-            completion_pct = completion,
-            volume_scale = volScale,
+            plan_id         = planId,
+            year_week       = yearWeekLabel(weekStartMs),
+            completion_pct  = completion,
+            volume_scale    = volScale,
             intensity_scale = intScale,
-            missed_days = missed,
-            soreness_flag = false
+            missed_days     = missed,
+            soreness_flag   = false,
+            notes           = ""
         )
     }
 
-    override suspend fun saveAdherenceSummary(uid: String, s: AdherenceSummary) {
+    override suspend fun saveAdherenceSummary(uid: String, summary: AdherenceSummary) {
         db.collection("users").document(uid)
             .collection("adherence_summaries")
-            .document("${s.plan_id}_${s.year_week}")
-            .set(s).await()
+            .document("${summary.plan_id}_${summary.year_week}")
+            .set(summary)
+            .await()
     }
 
+    // -------------------- Util --------------------
     private fun yearWeekLabel(ms: Long): String {
         val cal = java.util.Calendar.getInstance().apply { timeInMillis = ms }
         val y = cal.get(java.util.Calendar.YEAR)
         val w = cal.get(java.util.Calendar.WEEK_OF_YEAR)
         return "%04d-W%02d".format(y, w)
     }
-
 }

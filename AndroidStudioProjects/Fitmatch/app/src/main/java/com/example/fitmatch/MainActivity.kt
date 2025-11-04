@@ -74,9 +74,27 @@ class MainActivity : ComponentActivity() {
                 val firebaseCred = GoogleAuthProvider.getCredential(idToken, null)
                 auth.signInWithCredential(firebaseCred).addOnCompleteListener { task ->
                     if (task.isSuccessful) {
-                        Log.d("FitMatchAuth", "✅ Google/Firebase sign-in success")
-                        // 🔥 Automatically navigate to Home after Google sign-in
-                        navigationManager.navigateToHomeScreen()
+                        val u = auth.currentUser
+                        val uid = u?.uid
+                        if (uid != null) {
+                            val db = FirebaseFirestore.getInstance()
+                            val profile = mapOf(
+                                "display_name" to (u.displayName ?: ""),
+                                "email"       to (u.email ?: ""),
+                                "photo_url"   to (u.photoUrl?.toString() ?: ""),
+                                "created_at"  to com.google.firebase.Timestamp.now()
+                            )
+                            db.collection("users").document(uid).set(profile)
+                                .addOnSuccessListener {
+                                    navigationManager.navigateToHomeScreen()
+                                }
+                                .addOnFailureListener { e ->
+                                    // optional: log or show a toast/snackbar
+                                    navigationManager.navigateToHomeScreen()
+                                }
+                        } else {
+                            navigationManager.navigateToHomeScreen()
+                        }
                     } else {
                         Log.e("FitMatchAuth", "❌ Firebase sign-in failed", task.exception)
                     }
@@ -139,10 +157,16 @@ class MainActivity : ComponentActivity() {
                                 viewModel = viewModel()
                             )
                         }
-                        composable("ProgressScreen") {
+                        composable(
+                            route = "Progress/{planId}",
+                            arguments = listOf(
+                                navArgument("planId") { type = NavType.StringType }
+                            )
+                        ) { backStackEntry ->
+                            val planId = backStackEntry.arguments?.getString("planId")!!
                             ProgressScreen(
                                 navigationManager = navigationManager,
-                                viewModel = viewModel()
+                                planId = planId
                             )
                         }
                         composable("signin") {

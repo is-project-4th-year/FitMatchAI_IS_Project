@@ -38,8 +38,8 @@ class NavigationManager(private val navController: NavHostController) {
     }
 
 
-    fun navigateToProgress(){
-        navController.navigate("ProgressScreen") {
+    fun navigateToProgress(planId: String){
+        navController.navigate("Progress/$planId") {
             popUpTo(navController.graph.startDestinationId) { inclusive = true }
             launchSingleTop = true
         }

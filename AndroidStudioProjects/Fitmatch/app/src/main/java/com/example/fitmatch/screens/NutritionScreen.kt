@@ -1,10 +1,10 @@
 package com.example.fitmatch.screens
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
@@ -12,140 +12,169 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.fitmatch.data.SupplementRecDTO
-import com.example.fitmatch.models.NutritionRepositoryImpl
-import com.example.fitmatch.models.PlanRepository
 import com.example.fitmatch.navigations.NavigationManager
-import com.example.fitmatch.viewmodel.NutritionUiState
 import com.example.fitmatch.viewmodel.NutritionViewModel
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
+
+/* ──────────────────────────────────────────────────────────────────────────────
+   Public entry (use this in your NavHost)
+   - Owns VM, collects state, handles loading/error, and calls content UI
+   ────────────────────────────────────────────────────────────────────────────── */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun NutritionRoute(viewModel: NutritionViewModel = viewModel(),
+    navigationManager: NavigationManager) {
+    val ui by viewModel.ui.collectAsState()
+
+    // Start listening once
+    LaunchedEffect(Unit) { viewModel.startObserving() }
+
+    Scaffold(
+        topBar = {
+            SmallTopAppBar(
+                title = { Text("Nutrition") },
+                navigationIcon = {
+                    IconButton(onClick = {navigationManager.goBack()}) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    TextButton(
+                        onClick = { viewModel.regenerateFromLatestFeatures() },
+                        enabled = !ui.loading
+                    ) { Text("Regenerate") }
+                }
+            )
+        }
+    ) { inner ->
+        when {
+            ui.loading -> LoadingBox(Modifier.padding(inner))
+            ui.error != null -> ErrorBox(ui.error!!, Modifier.padding(inner))
+            ui.latest == null -> EmptyBox(
+                text = "No nutrition plan yet.",
+                modifier = Modifier.padding(inner)
+            )
+            else -> NutritionScreenContent(
+                modifier = Modifier.padding(inner),
+                goal = ui.latest!!.goal,
+                calories = ui.latest!!.macros.calories_target,
+                protein = ui.latest!!.macros.protein_g,
+                fatG = ui.latest!!.macros.fat_g,
+                carbsG = ui.latest!!.macros.carbs_g,
+                fiberG = ui.latest!!.macros.fiber_g,
+                hydrationLiters = ui.latest!!.hydration_liters,
+                supplements = ui.latest!!.supplements.map {
+                    SuppItemUi(name = it.name, dose = it.dose, notes = it.notes)
+                }
+            )
+        }
+    }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────────
+   UI-only data for supplements
+   ────────────────────────────────────────────────────────────────────────────── */
+data class SuppItemUi(val name: String, val dose: String, val notes: String?)
+
+/* ──────────────────────────────────────────────────────────────────────────────
+   Pure UI content (no VM work here)
+   ────────────────────────────────────────────────────────────────────────────── */
+@Composable
+private fun NutritionScreenContent(
+    modifier: Modifier = Modifier,
+    goal: String,
+    calories: Int,
+    protein: Int,
+    fatG: Int,
+    carbsG: Int,
+    fiberG: Int,
+    hydrationLiters: Double,
+    supplements: List<SuppItemUi>
+) {
+    val prettyGoal = when (goal.lowercase()) {
+        "fatloss", "fat loss", "cut" -> "Fat Loss"
+        "hypertrophy", "muscle"      -> "Hypertrophy"
+        "endurance"                  -> "Endurance"
+        else                         -> goal.ifBlank { "Nutrition" }
+    }
+
+    Column(
+        modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        OverviewCard(
+            title = prettyGoal,
+            calories = calories,
+            protein = protein,
+            fatG = fatG,
+            carbsG = carbsG,
+            fiberG = fiberG,
+            hydrationLiters = hydrationLiters
+        )
+        SupplementsCard(supplements)
+    }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────────
+   Cards & rows
+   ────────────────────────────────────────────────────────────────────────────── */
+@Composable
+private fun OverviewCard(
+    title: String,
+    calories: Int,
+    protein: Int,
+    fatG: Int,
+    carbsG: Int,
+    fiberG: Int,
+    hydrationLiters: Double
+) {
+    Card(shape = RoundedCornerShape(14.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text("Calories: $calories kcal/day", style = MaterialTheme.typography.bodyMedium)
+
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                MacroChip("Protein", "$protein g")
+                MacroChip("Fat", "$fatG g")
+                MacroChip("Carbs", "$carbsG g")
+                MacroChip("Fiber", "$fiberG g")
+            }
+
+            Text(
+                "Hydration: ${"%.1f".format(hydrationLiters)} L/day",
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+    }
+}
 
 @Composable
-fun NutritionScreen(
-    planRepo: PlanRepository,               // pass the same instance used in PlanScreen
-    navigationManager: NavigationManager
-) {
-    val auth = remember { FirebaseAuth.getInstance() }
-    val vm: NutritionViewModel = viewModel(
-        factory = object : ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                val repo = NutritionRepositoryImpl(FirebaseFirestore.getInstance())
-                return NutritionViewModel(auth, repo, planRepo) as T
-            }
-        }
-    )
-
-    val ui by vm.ui.collectAsState()
-
-    LaunchedEffect(Unit) { vm.startObserving() }
-
-    Column(Modifier.fillMaxSize()) {
-        // Header
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(72.dp + WindowInsets.statusBars.asPaddingValues().calculateTopPadding())
-                .background(
-                    Brush.horizontalGradient(listOf(Color(0xFF00C6FB), Color(0xFF0078FF)))
-                )
-                .padding(horizontal = 12.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .fillMaxHeight()
-            ) {
-                IconButton(onClick = {navigationManager.goBack()}, modifier = Modifier.size(40.dp)) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
-                }
-                Spacer(Modifier.width(8.dp))
-                Text("Nutrition", color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            }
-        }
-
-        if (ui.loading) {
-            LinearProgressIndicator(Modifier.fillMaxWidth())
-        }
-        ui.error?.let {
-            Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(12.dp))
-        }
-
-        val plan = ui.latest
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            if (plan == null) {
-                item {
-                    Column {
-                        Text("No nutrition plan yet.")
-                        Spacer(Modifier.height(8.dp))
-                        Button(onClick = { vm.regenerateFromLatestFeatures() }) {
-                            Text("Generate from latest metrics")
-                        }
-                    }
-                }
+private fun SupplementsCard(items: List<SuppItemUi>) {
+    Card(shape = RoundedCornerShape(14.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Supplements", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            if (items.isEmpty()) {
+                Text("None recommended.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
-                item {
-                    // Macro card
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier
+                items.forEachIndexed { idx, it ->
+                    SupplementRow(it)
+                    if (idx != items.lastIndex) Divider(
+                        Modifier
                             .fillMaxWidth()
-                            .border(1.dp, Color(0xFFE5E8F1), RoundedCornerShape(14.dp))
-                    ) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(plan.goal.replaceFirstChar { it.uppercase() }, fontWeight = FontWeight.SemiBold)
-                            Text("Calories: ${plan.macros.calories_target} kcal/day")
-                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                MacroChip("Protein", "${plan.macros.protein_g} g")
-                                MacroChip("Fat", "${plan.macros.fat_g} g")
-                                MacroChip("Carbs", "${plan.macros.carbs_g} g")
-                                MacroChip("Fiber", "${plan.macros.fiber_g} g")
-                            }
-                            Text("Hydration: %.1f L/day".format(plan.hydration_liters))
-                            if (plan.safety_flags.isNotEmpty()) {
-                                Spacer(Modifier.height(6.dp))
-                                Text("Safety:", fontWeight = FontWeight.SemiBold)
-                                plan.safety_flags.forEach { Text("• $it") }
-                            }
-                        }
-                    }
-                }
-
-                item {
-                    // Supplements
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .border(1.dp, Color(0xFFE5E8F1), RoundedCornerShape(14.dp))
-                    ) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("Supplements", fontWeight = FontWeight.SemiBold)
-                            plan.supplements.forEach { SuppRow(it) }
-                        }
-                    }
-                }
-
-                item {
-                    Button(
-                        onClick = { vm.regenerateFromLatestFeatures() },
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                        shape = RoundedCornerShape(12.dp)
-                    ) { Text("Regenerate from latest metrics") }
+                            .padding(top = 6.dp)
+                            .clip(RoundedCornerShape(1.dp))
+                    )
                 }
             }
         }
@@ -153,20 +182,58 @@ fun NutritionScreen(
 }
 
 @Composable
+private fun SupplementRow(s: SuppItemUi) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(s.name, fontWeight = FontWeight.SemiBold)
+        Text("Dose: ${s.dose}", style = MaterialTheme.typography.bodyMedium)
+        if (!s.notes.isNullOrBlank()) {
+            Text(
+                s.notes!!,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────────
+   Small reusable pieces
+   ────────────────────────────────────────────────────────────────────────────── */
+@Composable
 private fun MacroChip(label: String, value: String) {
     Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = Color(0xFFF3F5F9),
+        shape = RoundedCornerShape(999.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp
-    ) { Text("$label: $value", modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) }
+    ) {
+        Row(
+            Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("$label: ", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(value, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
 }
 
 @Composable
-private fun SuppRow(s: SupplementRecDTO) {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(s.name, fontWeight = FontWeight.SemiBold)
-        Text("Dose: ${s.dose}")
-        if (s.notes.isNotBlank()) Text(s.notes, style = MaterialTheme.typography.bodySmall, color = Color(0xFF677181))
+private fun LoadingBox(modifier: Modifier = Modifier) {
+    Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        CircularProgressIndicator()
+    }
+}
+
+@Composable
+private fun ErrorBox(message: String, modifier: Modifier = Modifier) {
+    Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text(message, color = MaterialTheme.colorScheme.error)
+    }
+}
+
+@Composable
+private fun EmptyBox(text: String, modifier: Modifier = Modifier) {
+    Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text(text)
     }
 }

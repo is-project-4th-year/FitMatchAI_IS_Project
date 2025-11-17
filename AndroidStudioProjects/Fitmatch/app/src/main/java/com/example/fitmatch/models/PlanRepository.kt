@@ -9,13 +9,6 @@ interface PlanRepository {
 
     suspend fun fetchLatestFeatures(uid: String): Map<String, Any?>
 
-    suspend fun generateAndSavePlan(
-        userId: String,
-        features: Map<String, Any>,
-        dayOffset: Int = 0,
-        weekIndex: Int = 1
-    ): PlanDTO
-
     suspend fun computeWeeklyAdherence(
         uid: String,
         planId: String,
@@ -24,5 +17,21 @@ interface PlanRepository {
     ): AdherenceSummary
 
     suspend fun saveAdherenceSummary(uid: String, summary: AdherenceSummary)
+    suspend fun generateAndSavePlan(
+        userId: String,
+        features: Map<String, Any>,
+        dayOffset: Int,
+        weekIndex: Int,
+        variantSeed: Int? = null
+    ): PlanDTO
+
+    suspend fun generateWithAntiRepeat(
+        userId: String,
+        cleanFeatures: Map<String, Any>,
+        dayOffset: Int,
+        weekIndex: Int,
+        lastPlan: PlanDTO?
+    ): PlanDTO
+
 }
 

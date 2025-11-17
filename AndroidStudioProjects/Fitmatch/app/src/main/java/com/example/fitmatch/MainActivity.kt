@@ -52,7 +52,10 @@ import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import com.example.fitmatch.Viewmodels.GoalsViewModel
 import com.example.fitmatch.models.GoalsRepository
+import com.example.fitmatch.models.NutritionRepositoryImpl
+import com.example.fitmatch.net.FitmatchApi
 import com.example.fitmatch.net.NetworkModule
+import com.example.fitmatch.viewmodel.NutritionViewModel
 import com.example.fitmatch.viewmodel.PlanViewModelFactory
 
 class MainActivity : ComponentActivity() {
@@ -214,13 +217,52 @@ class MainActivity : ComponentActivity() {
                         composable("ResetPassword") {
                             ResetPasswordScreen(navigationManager = navigationManager)
                         }
-                        composable("NutritionScreen"){
-                            val planRepo = PlanRepositoryImpl(
-                                    db = FirebaseFirestore.getInstance(),
-                                    api = NetworkModule.api
+//                        composable("NutritionScreen"){
+//                            val planRepo = PlanRepositoryImpl(
+//                                    db = FirebaseFirestore.getInstance(),
+//                                    api = NetworkModule.api
+//                                )
+//                            NutritionScreen(planRepo = planRepo, navigationManager = navigationManager)
+//                        }
+                        // In MainActivity (or wherever your NavHost is defined)
+
+
+                            // ... other composables
+
+                            composable("NutritionRoute") {
+                                // Build deps (you likely already have singletons; keep it consistent)
+                                val auth = FirebaseAuth.getInstance()
+                                val db = FirebaseFirestore.getInstance()
+
+                                // Your repos (replace impl constructors with yours)
+
+                                val planRepo = remember {
+                                    PlanRepositoryImpl(
+                                        db = FirebaseFirestore.getInstance(),
+                                        api = NetworkModule.api
+                                    )
+                                }
+                                val nutritionRepo = remember { NutritionRepositoryImpl(db) } // your impl
+
+                                val vm: NutritionViewModel = viewModel(
+                                    factory = object : ViewModelProvider.Factory {
+                                        @Suppress("UNCHECKED_CAST")
+                                        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                                            return NutritionViewModel(
+                                                auth = auth,
+                                                nutritionRepo = nutritionRepo,
+                                                planRepo = planRepo
+                                            ) as T
+                                        }
+                                    }
                                 )
-                            NutritionScreen(planRepo = planRepo, navigationManager = navigationManager)
-                        }
+
+                                // Kick off the stream once
+                                LaunchedEffect(Unit) { vm.startObserving() }
+
+                                NutritionRoute(viewModel = vm, navigationManager = navigationManager)
+                            }
+
 
                         composable("otp/{vid}/{phone}") { backStack ->
                             val vid = backStack.arguments?.getString("vid") ?: ""

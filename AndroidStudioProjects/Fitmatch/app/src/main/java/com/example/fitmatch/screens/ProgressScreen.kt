@@ -139,12 +139,15 @@ fun ProgressScreen(
                     )
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        StatPill("${(ui.thisWeekPct * 100).toInt()}%", "Completion")
+//                        StatPill("${(ui.thisWeekPct * 100).toInt()}%", "Completion")
                         StatPill("${ui.streakDays}d", "Streak")
+                        StatPill("${ui.cumulativeSessionsDone}/${ui.cumulativeSessionsTotal}", "Exercises Done")
                         StatPill("${ui.doneSessions}/${ui.doneSessions + ui.missedSessions}", "Sessions")
                     }
                 }
             }
+
+            Spacer(Modifier.height(24.dp))
 
             // Daily adherence trend (Line)
             ChartCard(title = "Daily Adherence") {
@@ -180,8 +183,56 @@ fun ProgressScreen(
                     modifier = Modifier.fillMaxWidth().height(180.dp)
                 )
             }
+            // --- NEW: Daily Volume vs Intensity (two lines) ---
+            ChartCard(title = "Daily Volume & Intensity") {
+                if (ui.dailyVolumeRatio.isNotEmpty() && ui.dailyIntensityRatio.isNotEmpty()) {
+                    // First line: volume
+                    LineChartMP(
+                        values = ui.dailyVolumeRatio,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(180.dp)
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    // Second line: intensity
+                    LineChartMP(
+                        values = ui.dailyIntensityRatio,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(180.dp)
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Volume ratio & intensity ratio by day",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF707A89)
+                    )
+                } else {
+                    Text("No data yet", style = MaterialTheme.typography.bodySmall)
+                }
+            }
 
-            Spacer(Modifier.height(24.dp))
+// --- NEW: Weekly Completion % (bar) ---
+            ChartCard(title = "Weekly Completion %") {
+                if (ui.weeklyCompletionPct.isNotEmpty()) {
+                    // MP bar takes Float list; values already in 0..1
+                    BarChartMP(
+                        values = ui.weeklyCompletionPct,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(180.dp)
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Percent of prescribed work completed per week",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF707A89)
+                    )
+                } else {
+                    Text("No weekly data yet", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+
         }
     }
 }

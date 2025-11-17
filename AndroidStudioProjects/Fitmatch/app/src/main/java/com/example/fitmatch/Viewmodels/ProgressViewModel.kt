@@ -42,64 +42,115 @@ class ProgressViewModel(
     }
 
     private fun derive(logs: List<ProgressDayLog>): ProgressUi {
-        if (logs.isEmpty()) return ProgressUi(loading = false, logs = emptyList())
-
-        // Daily adherence trend (ordered)
-        val dailyPct = logs.map { l ->
-            val denom = max(1, l.exercises_count)
-            (100f * l.exercises_completed.toFloat() / denom.toFloat()).coerceIn(0f, 100f)
+        if (logs.isEmpty()) {
+            return ProgressUi(
+                loading = false,
+                logs = emptyList()
+            )
         }
 
-        val dayFmt = SimpleDateFormat("EEE", Locale.getDefault())
-        val dayLabels = logs.map { l -> dayFmt.format(Date(l.date)).uppercase(Locale.getDefault()) }
+        // --- Sort once (by day) ---
+        val sorted = logs.sortedBy { it.date }
 
-        // Weekly volume bars (avg volume ratio per ISO week)
-        val weekFmt = SimpleDateFormat("YYYY-'W'ww", Locale.US) // "2025-W44"
-        val grouped = logs.groupBy { weekFmt.format(Date(it.date)) }
-        val weeklyLabels = grouped.keys.sorted()
-        val weeklyBars = weeklyLabels.map { wk ->
-            val vals = grouped[wk]!!.map { it.volume_ratio.toFloat() }
-            vals.average().toFloat()
+        // --- Date formatters ---
+        val dayFmt   = java.text.SimpleDateFormat("MMM d", java.util.Locale.getDefault())
+        val weekFmt  = java.text.SimpleDateFormat("YYYY-'W'ww", java.util.Locale.US)
+        val keyFmt   = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.getDefault())
+
+        // --- Daily series: adherence %, labels, volume & intensity ---
+        val dailyAdherencePct = sorted.map { log ->
+            val total = log.exercises_count.coerceAtLeast(1)
+            (log.exercises_completed.toFloat() / total.toFloat()).coerceIn(0f, 1f)
+        }
+        val dailyLabels = sorted.map { dayFmt.format(java.util.Date(it.date)) }
+
+        val dailyVolumeRatio    = sorted.map { it.volume_ratio.toFloat() }
+        val dailyIntensityRatio = sorted.map { it.intensity_ratio.toFloat() }
+
+        // --- Weekly aggregates: volume bars + completion % ---
+        val groupedByWeek = sorted.groupBy { weekFmt.format(java.util.Date(it.date)) }
+        val weekKeysSorted = groupedByWeek.keys.sorted()
+
+        val weeklyVolumeBars = weekKeysSorted.map { weekKey ->
+            val weekLogs = groupedByWeek[weekKey]!!
+            val avgVol = weekLogs.map { it.volume_ratio }.average()
+            avgVol.toFloat()
         }
 
-        // Done / missed sessions for pie
-        val done = logs.count { it.exercises_completed >= max(1, it.exercises_count * 7 / 10) }
-        val missed = logs.size - done
+        val weeklyCompletionPct = weekKeysSorted.map { weekKey ->
+            val weekLogs = groupedByWeek[weekKey]!!
+            val done  = weekLogs.sumOf { it.exercises_completed }
+            val total = weekLogs.sumOf { it.exercises_count }.coerceAtLeast(1)
+            (done.toFloat() / total.toFloat()).coerceIn(0f, 1f)
+        }
 
-        // This week % (over last 7 days)
-        val last7 = logs.takeLast(7)
-        val twPct = if (last7.isNotEmpty()) {
-            val c = last7.sumOf { it.exercises_completed }
-            val d = last7.sumOf { it.exercises_count }.coerceAtLeast(1)
-            (c.toFloat() / d.toFloat()).coerceIn(0f, 1f)
-        } else 0f
+        val weeklyLabels = weekKeysSorted.map { it.substringAfter('-') } // "W##"
 
-        // Streak: consecutive days with any log from the end
-        val keyFmt = SimpleDateFormat("yyyyMMdd", Locale.getDefault())
-        var streak = 0
-        if (logs.isNotEmpty()) {
-            val byKey = logs.associateBy { it.date_key }
-            var cursor = logs.last().date
-            while (true) {
-                val key = keyFmt.format(Date(cursor))
-                if (byKey.containsKey(key)) {
-                    streak += 1
-                    cursor -= 24L * 60L * 60L * 1000L
-                } else break
+        // --- Session tiles: done vs missed (rule: >=70% completed counts as "done") ---
+        var doneSessions = 0
+        var missedSessions = 0
+        sorted.forEach { log ->
+            val total = log.exercises_count
+            val completed = log.exercises_completed
+            if (total > 0 && completed >= (0.7f * total)) doneSessions++ else missedSessions++
+        }
+
+        // --- This week % (use device "current week") ---
+        val now = System.currentTimeMillis()
+        val currentWeekKey = weekFmt.format(java.util.Date(now))
+        val thisWeekLogs = groupedByWeek[currentWeekKey].orEmpty()
+        val thisWeekPct = if (thisWeekLogs.isEmpty()) 0f else {
+            val c = thisWeekLogs.sumOf { it.exercises_completed }
+            val t = thisWeekLogs.sumOf { it.exercises_count }.coerceAtLeast(1)
+            (c.toFloat() / t.toFloat()).coerceIn(0f, 1f)
+        }
+
+        // --- Streak: longest consecutive-day run where a log exists ---
+        val byKey = sorted.associateBy { it.date_key } // assumes date_key == "yyyyMMdd"
+        var bestStreak = 0
+        var currentStreak = 0
+        val firstDay = sorted.first().date
+        val lastDay  = sorted.last().date
+        var cursor = firstDay
+        while (cursor <= lastDay) {
+            val key = keyFmt.format(java.util.Date(cursor))
+            if (byKey.containsKey(key)) {
+                currentStreak += 1
+                if (currentStreak > bestStreak) bestStreak = currentStreak
+            } else {
+                currentStreak = 0
             }
+            cursor += 24L * 60L * 60L * 1000L
         }
 
+        // --- Lifetime counters ---
+        val cumulativeSessionsDone  = sorted.sumOf { it.exercises_completed }
+        val cumulativeSessionsTotal = sorted.sumOf { it.exercises_count }.coerceAtLeast(1)
+
+        // --- Return full UI model (preserve your existing fields + new ones) ---
         return ProgressUi(
             loading = false,
-            logs = logs,
-            dailyAdherencePct = dailyPct,
-            dailyLabels = dayLabels,
-            weeklyVolumeBars = weeklyBars,
-            weeklyLabels = weeklyLabels.map { it.substringAfter('-') }, // "W44"
-            doneSessions = done,
-            missedSessions = missed,
-            thisWeekPct = twPct,
-            streakDays = streak
+            logs = sorted,
+
+            // existing
+            dailyAdherencePct = dailyAdherencePct,
+            dailyLabels = dailyLabels,
+            weeklyVolumeBars = weeklyVolumeBars,
+            weeklyLabels = weeklyLabels,
+            doneSessions = doneSessions,
+            missedSessions = missedSessions,
+            thisWeekPct = thisWeekPct,
+            streakDays = bestStreak,
+
+            // new
+            dailyVolumeRatio = dailyVolumeRatio,
+            dailyIntensityRatio = dailyIntensityRatio,
+            weeklyCompletionPct = weeklyCompletionPct,
+            weeklyCompletionLabels = weeklyLabels,
+            cumulativeSessionsDone = cumulativeSessionsDone,
+            cumulativeSessionsTotal = cumulativeSessionsTotal,
+            bestStreakDays = bestStreak
         )
     }
+
 }

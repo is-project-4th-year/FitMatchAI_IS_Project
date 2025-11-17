@@ -60,6 +60,7 @@ fun HomeScreen(navigationManager: NavigationManager, auth: FirebaseAuth) {
 
     val FMNavy = Color(0xFF0B0D1A)
     val FMGreen = Color(0xFF1EC87C)
+    val FMRed = Color(0xFFE91E63)
     val FMLightBlue = Color(0xFF4BA6F8)
     val FMLightOrange = Color(0xFFFEC544)
     val FMBackground = Color(0xFFFFFFFF)
@@ -172,6 +173,8 @@ fun HomeScreen(navigationManager: NavigationManager, auth: FirebaseAuth) {
             Column(Modifier.padding(horizontal = 20.dp)) {
                 Text("Quick Actions", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = FMNavy)
                 Spacer(Modifier.height(12.dp))
+                QuickActionCard("Create Goal", "start your fitness journey", FMRed,  onClick = { navigationManager.navigateToGoals() })
+                Spacer(Modifier.height(10.dp))
                 QuickActionCard("Add your Plan", "Log your latest workout", FMGreen,  onClick = { navigationManager.navigateToPlan() })
                 Spacer(Modifier.height(10.dp))
                 QuickActionCard("View Recommendations", "AI-powered insights", FMLightBlue, onClick= {navigationManager.navigateToNutrition()})

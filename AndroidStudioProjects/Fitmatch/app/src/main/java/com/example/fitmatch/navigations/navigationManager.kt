@@ -37,7 +37,7 @@ class NavigationManager(private val navController: NavHostController) {
         }
     }
     fun navigateToNutrition(){
-        navController.navigate("NutritionScreen")
+        navController.navigate("NutritionRoute")
     }
 
 

@@ -4,6 +4,7 @@ import com.example.fitmatch.data.Goal
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.channels.awaitClose
@@ -11,17 +12,33 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 import java.util.Date
 
+
 class GoalsRepository(private val uid: String) {
     private val col = Firebase.firestore
         .collection("users").document(uid)
         .collection("goals")
 
-    /** ---- Helpers to normalize Firestore types ---- */
+    /* ---- helpers ---- */
     private fun Any?.asLongMillis(): Long = when (this) {
         is Number -> this.toLong()
         is Timestamp -> this.toDate().time
         is Date -> this.time
         else -> 0L
+    }
+
+    suspend fun getActiveGoalOrNull(): Goal? {
+        return try {
+            val snap = col
+                .whereEqualTo("status", "active")
+                .orderBy("startDate", Query.Direction.DESCENDING)
+                .limit(1)
+                .get()
+                .await()
+            val doc = snap.documents.firstOrNull() ?: return null
+            runCatching { doc.toGoalSafe() }.getOrNull()
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private fun DocumentSnapshot.toGoalSafe(): Goal {
@@ -47,13 +64,12 @@ class GoalsRepository(private val uid: String) {
         "currentValue" to currentValue,
         "durationWeeks" to durationWeeks,
         "workoutsPerWeek" to workoutsPerWeek,
-        // Write as numeric millis for consistency
         "startDate" to (startDate.takeIf { it > 0 } ?: 0L),
         "endDate" to (endDate.takeIf { it > 0 } ?: 0L),
         "status" to status
     )
 
-    /** ---- Streaming ---- */
+    /* ---- streaming ---- */
     fun goalsFlow() = callbackFlow<List<Goal>> {
         val reg = col.addSnapshotListener { snap, err ->
             if (err != null) {
@@ -68,7 +84,7 @@ class GoalsRepository(private val uid: String) {
         awaitClose { reg.remove() }
     }
 
-    /** ---- CRUD ---- */
+    /* ---- CRUD ---- */
     suspend fun add(goal: Goal) {
         col.add(goal.toMapNormalized()).await()
     }

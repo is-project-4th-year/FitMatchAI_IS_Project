@@ -15,5 +15,14 @@ data class ProgressUi(
     val doneSessions: Int = 0,
     val missedSessions: Int = 0,
     val thisWeekPct: Float = 0f,                     // 0..1
-    val streakDays: Int = 0
+    val streakDays: Int = 0,
+    val dailyVolumeRatio: List<Float> = emptyList(),
+    val dailyIntensityRatio: List<Float> = emptyList(),
+    // NEW — weekly aggregates
+    val weeklyCompletionPct: List<Float> = emptyList(),  // 0..1
+    val weeklyCompletionLabels: List<String> = emptyList(), // W##
+    // NEW — cumulated context
+    val cumulativeSessionsDone: Int = 0,
+    val cumulativeSessionsTotal: Int = 0,
+    val bestStreakDays: Int = 0
 )

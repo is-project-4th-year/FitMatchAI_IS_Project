@@ -21,6 +21,9 @@ class NavigationManager(private val navController: NavHostController) {
             launchSingleTop = true
         }
     }
+    fun openWorkoutLog(planId: String, day: Int, dateMillis: Long = System.currentTimeMillis()) {
+        navController.navigate("workoutLog/$planId/$day/$dateMillis")
+    }
 
     fun navigateToGoals(){
         navController.navigate("GoalScreen") {
@@ -33,10 +36,13 @@ class NavigationManager(private val navController: NavHostController) {
             launchSingleTop = true
         }
     }
+    fun navigateToNutrition(){
+        navController.navigate("NutritionRoute")
+    }
 
 
-    fun navigateToProgress(){
-        navController.navigate("ProgressScreen") {
+    fun navigateToProgress(planId: String){
+        navController.navigate("Progress/$planId") {
             popUpTo(navController.graph.startDestinationId) { inclusive = true }
             launchSingleTop = true
         }

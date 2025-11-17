@@ -3,6 +3,7 @@ package com.example.fitmatch
 import android.os.Build
 import android.util.Log
 import android.os.Bundle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.IntentSenderRequest
@@ -15,7 +16,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -31,18 +31,32 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.example.fitmatch.Viewmodels.PlanViewModel
-import com.example.fitmatch.models.ProgressViewModel
+import com.example.fitmatch.models.PlanRepositoryImpl
 import com.example.fitmatch.navigations.NavigationManager
 import com.example.fitmatch.screens.*
 import com.example.fitmatch.ui.theme.FitMatchTheme
+import com.example.fitmatch.viewmodel.PlanViewModel
 import com.google.android.gms.auth.api.identity.BeginSignInRequest
 import com.google.android.gms.auth.api.identity.Identity
 import com.google.android.gms.auth.api.identity.SignInClient
 import com.google.android.gms.common.api.ApiException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.delay
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
+import com.example.fitmatch.Viewmodels.GoalsViewModel
+import com.example.fitmatch.models.GoalsRepository
+import com.example.fitmatch.models.NutritionRepositoryImpl
+import com.example.fitmatch.net.FitmatchApi
+import com.example.fitmatch.net.NetworkModule
+import com.example.fitmatch.viewmodel.NutritionViewModel
+import com.example.fitmatch.viewmodel.PlanViewModelFactory
 
 class MainActivity : ComponentActivity() {
 
@@ -63,9 +77,27 @@ class MainActivity : ComponentActivity() {
                 val firebaseCred = GoogleAuthProvider.getCredential(idToken, null)
                 auth.signInWithCredential(firebaseCred).addOnCompleteListener { task ->
                     if (task.isSuccessful) {
-                        Log.d("FitMatchAuth", "✅ Google/Firebase sign-in success")
-                        // 🔥 Automatically navigate to Home after Google sign-in
-                        navigationManager.navigateToHomeScreen()
+                        val u = auth.currentUser
+                        val uid = u?.uid
+                        if (uid != null) {
+                            val db = FirebaseFirestore.getInstance()
+                            val profile = mapOf(
+                                "display_name" to (u.displayName ?: ""),
+                                "email"       to (u.email ?: ""),
+                                "photo_url"   to (u.photoUrl?.toString() ?: ""),
+                                "created_at"  to com.google.firebase.Timestamp.now()
+                            )
+                            db.collection("users").document(uid).set(profile)
+                                .addOnSuccessListener {
+                                    navigationManager.navigateToHomeScreen()
+                                }
+                                .addOnFailureListener { e ->
+                                    // optional: log or show a toast/snackbar
+                                    navigationManager.navigateToHomeScreen()
+                                }
+                        } else {
+                            navigationManager.navigateToHomeScreen()
+                        }
                     } else {
                         Log.e("FitMatchAuth", "❌ Firebase sign-in failed", task.exception)
                     }
@@ -96,19 +128,21 @@ class MainActivity : ComponentActivity() {
             .build()
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
-        @Composable
-        fun planViewModel(): PlanViewModel = viewModel(
-            factory = PlanViewModel.factory(
-                FirebaseAuth.getInstance(),
-                com.google.firebase.firestore.FirebaseFirestore.getInstance()
-            )
-        )
-
         setContent {
             FitMatchTheme{
+
                 val navController = rememberNavController()
                 navigationManager = remember { NavigationManager(navController) }
                 Surface {
+                    val repo = remember {
+                        PlanRepositoryImpl(
+                            db = FirebaseFirestore.getInstance(),
+                            api = NetworkModule.api
+                        )
+                    }
+                    val planFactory = remember { PlanViewModelFactory(repo, auth) }
+
+                    val planVm: PlanViewModel = viewModel(factory = planFactory)
                     NavHost(navController, startDestination = "splash") {
 
                         composable("splash") { SplashScreen(navController) }
@@ -118,15 +152,25 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("HomeScreen") {
-                            HomeScreen(navigationManager = navigationManager, auth= auth)
+                            HomeScreen(navigationManager = navigationManager, auth = auth)
                         }
 
                         composable("ProfileScreen") {
-                            ProfileScreen(navigationManager = navigationManager, viewModel = viewModel())
-                        }
-                        composable("ProgressScreen") {
-                            ProgressScreen(navigationManager = navigationManager,
+                            ProfileScreen(
+                                navigationManager = navigationManager,
                                 viewModel = viewModel()
+                            )
+                        }
+                        composable(
+                            route = "Progress/{planId}",
+                            arguments = listOf(
+                                navArgument("planId") { type = NavType.StringType }
+                            )
+                        ) { backStackEntry ->
+                            val planId = backStackEntry.arguments?.getString("planId")!!
+                            ProgressScreen(
+                                navigationManager = navigationManager,
+                                planId = planId
                             )
                         }
                         composable("signin") {
@@ -137,9 +181,25 @@ class MainActivity : ComponentActivity() {
                                 onAppleSignInClick = { /* optional */ }
                             )
                         }
+
                         composable("PlanScreen") {
-                            PlanScreen(navigationManager = navigationManager, viewModel = planViewModel())
+                            val goalsFactory = remember {
+                                object : ViewModelProvider.Factory {
+                                    @Suppress("UNCHECKED_CAST")
+                                    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                                        val uid = FirebaseAuth.getInstance().currentUser?.uid
+                                            ?: error("Not logged in")
+                                        return GoalsViewModel(GoalsRepository(uid)) as T
+                                    }
+                                }
+                            }
+                            val goalsVm: GoalsViewModel = viewModel(factory = goalsFactory)
+                            PlanScreen(
+                                navigationManager = navigationManager, planVm = planVm,
+                                goalsVm = goalsVm
+                            )
                         }
+
                         composable("SignUp") {
                             SignUpScreen(
                                 navigationManager = navigationManager,
@@ -148,17 +208,93 @@ class MainActivity : ComponentActivity() {
                                 onAppleSignInClick = { /* optional */ }
                             )
                         }
+                        composable("GoalScreen") {
+                            GoalScreen(
+                                auth = auth,
+                                navigationManager = navigationManager
+                            )
+                        }
                         composable("ResetPassword") {
                             ResetPasswordScreen(navigationManager = navigationManager)
                         }
-                        composable("GoalScreen") {
-                            GoalScreen(auth = auth, navigationManager = navigationManager)
-                        }
+//                        composable("NutritionScreen"){
+//                            val planRepo = PlanRepositoryImpl(
+//                                    db = FirebaseFirestore.getInstance(),
+//                                    api = NetworkModule.api
+//                                )
+//                            NutritionScreen(planRepo = planRepo, navigationManager = navigationManager)
+//                        }
+                        // In MainActivity (or wherever your NavHost is defined)
+
+
+                            // ... other composables
+
+                            composable("NutritionRoute") {
+                                // Build deps (you likely already have singletons; keep it consistent)
+                                val auth = FirebaseAuth.getInstance()
+                                val db = FirebaseFirestore.getInstance()
+
+                                // Your repos (replace impl constructors with yours)
+
+                                val planRepo = remember {
+                                    PlanRepositoryImpl(
+                                        db = FirebaseFirestore.getInstance(),
+                                        api = NetworkModule.api
+                                    )
+                                }
+                                val nutritionRepo = remember { NutritionRepositoryImpl(db) } // your impl
+
+                                val vm: NutritionViewModel = viewModel(
+                                    factory = object : ViewModelProvider.Factory {
+                                        @Suppress("UNCHECKED_CAST")
+                                        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                                            return NutritionViewModel(
+                                                auth = auth,
+                                                nutritionRepo = nutritionRepo,
+                                                planRepo = planRepo
+                                            ) as T
+                                        }
+                                    }
+                                )
+
+                                // Kick off the stream once
+                                LaunchedEffect(Unit) { vm.startObserving() }
+
+                                NutritionRoute(viewModel = vm, navigationManager = navigationManager)
+                            }
+
+
                         composable("otp/{vid}/{phone}") { backStack ->
                             val vid = backStack.arguments?.getString("vid") ?: ""
                             val phone = backStack.arguments?.getString("phone") ?: ""
-                            OtpVerifyScreen(auth = auth, navigationManager = navigationManager, verificationId = vid, phoneNumber = phone)
+                            OtpVerifyScreen(
+                                auth = auth,
+                                navigationManager = navigationManager,
+                                verificationId = vid,
+                                phoneNumber = phone
+                            )
                         }
+                        composable(
+                            route = "workoutLog/{planId}/{day}/{dateMillis}",
+                            arguments = listOf(
+                                navArgument("planId") { type = NavType.StringType },
+                                navArgument("day") { type = NavType.IntType },
+                                navArgument("dateMillis") { type = NavType.LongType },
+                            )
+                        ) { backStackEntry ->
+                            val planId = backStackEntry.arguments?.getString("planId")!!
+                            val day = backStackEntry.arguments?.getInt("day")!!
+                            val dateMillis = backStackEntry.arguments?.getLong("dateMillis")!!
+
+                            WorkoutLogScreen(
+                                planId = planId,
+                                day = day,
+                                dateMillis = dateMillis,
+                                navigationManager = navigationManager,
+                                 planVm = planVm
+                            )
+                        }
+
 
                     }
                 }

@@ -1,20 +1,37 @@
 package com.example.fitmatch.models
 
+import com.example.fitmatch.data.AdherenceSummary
 import com.example.fitmatch.data.PlanDTO
 import kotlinx.coroutines.flow.Flow
 
 interface PlanRepository {
-    suspend fun submitMetrics(
-        age: Int,
-        height: Double,
-        weight: Double,
-        bmi: Double,
-        goalTypeIndex: Int,      // 0=fatloss, 1=hypertrophy, 2=endurance
-        workoutsPerWeek: Int,
-        caloriesAvg: Double,
-        equipment: String        // "none" | "basic" | "gym"
-    ): String
+    fun observePlans(userId: String): Flow<List<PlanDTO>>
 
-    /** Emits all plans; you can take the latest in the UI. */
-    fun observeRecommendations(): Flow<List<PlanDTO>>
+    suspend fun fetchLatestFeatures(uid: String): Map<String, Any?>
+
+    suspend fun computeWeeklyAdherence(
+        uid: String,
+        planId: String,
+        weekStartMs: Long,
+        weekEndMs: Long
+    ): AdherenceSummary
+
+    suspend fun saveAdherenceSummary(uid: String, summary: AdherenceSummary)
+    suspend fun generateAndSavePlan(
+        userId: String,
+        features: Map<String, Any>,
+        dayOffset: Int,
+        weekIndex: Int,
+        variantSeed: Int? = null
+    ): PlanDTO
+
+    suspend fun generateWithAntiRepeat(
+        userId: String,
+        cleanFeatures: Map<String, Any>,
+        dayOffset: Int,
+        weekIndex: Int,
+        lastPlan: PlanDTO?
+    ): PlanDTO
+
 }
+

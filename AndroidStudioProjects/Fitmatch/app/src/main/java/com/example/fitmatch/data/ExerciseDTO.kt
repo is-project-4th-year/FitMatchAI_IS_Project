@@ -1,5 +1,9 @@
 package com.example.fitmatch.data
 
+import com.squareup.moshi.Json
+import com.squareup.moshi.JsonClass
+
+@JsonClass(generateAdapter = true)
 data class ExerciseDTO(
     val day: Int = 0,
     val block: String = "",
@@ -7,7 +11,7 @@ data class ExerciseDTO(
     val sets: Int = 0,
     val reps: String = "",
     val tempo: String = "",
-    val rest_sec: Int = 0
+    @Json(name = "rest_sec")val rest_sec: Int = 0
 )
 
 data class PlanDTO(
@@ -16,7 +20,10 @@ data class PlanDTO(
     val microcycle_days: Int = 0,
     val exercises: List<ExerciseDTO> = emptyList(),
     val notes: String = "",
-    val model_version: String = ""
+    val model_version: String = "",
+    val created_at_ms: Long = 0L,
+    val week_index: Int? = 1,
+    val day_offset: Int? = 0
 )
 
 

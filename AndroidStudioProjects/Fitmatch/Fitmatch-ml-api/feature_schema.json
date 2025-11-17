@@ -1,0 +1,23 @@
+{
+  "model_version": "v1",
+  "features": [
+    "age",
+    "height",
+    "weight",
+    "bmi",
+    "goal_type",
+    "workouts_per_week",
+    "calories_avg",
+    "equipment"
+  ],
+  "types": [
+    "int",
+    "float",
+    "float",
+    "float",
+    "int",
+    "int",
+    "float",
+    "str"
+  ]
+}

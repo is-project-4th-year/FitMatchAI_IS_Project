@@ -4,7 +4,7 @@ FitMatch AI is a mobile app that creates **personalized, multi-week workout plan
 
 **Stack:** Android (Kotlin/Jetpack Compose) • Firebase (Auth + Firestore) • FastAPI (Docker/Cloud Run) • Retrofit/OkHttp  
 
----
+
 
 ## ✨ Major Features
 

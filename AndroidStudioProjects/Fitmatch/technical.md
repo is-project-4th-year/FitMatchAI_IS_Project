@@ -9,7 +9,7 @@
 
 ---
 
-## 1. Project Overview
+## 1. Executive Summary
 
 FitMatchAI is a mobile application that generates **personalized, goal-driven workout plans** and concise **nutrition guidance** from a small set of self-entered metrics.
 

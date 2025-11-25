@@ -19,7 +19,7 @@ The system focuses on:
 - Using a **machine learning model** to map user profiles to an appropriate **plan variant / microcycle**.
 - Updating plans **week by week** based on adherence and progress, instead of remaining static.
 
-The current production Random Forest model achieves **~90% accuracy** on held-out test data when predicting the appropriate plan category for a user profile.
+
 
 ---
 
@@ -28,6 +28,10 @@ The current production Random Forest model achieves **~90% accuracy** on held-ou
 ### 2.1 Datasets Used
 
 FitMatchAI uses a blended dataset strategy:
+
+ - **MegaGym Dataset**  
+  Supplies a detailed exercise library with machine and free-weight movements, sets, reps, and primary muscle groups.  
+  This dataset is mainly used to design and populate the **microcycles / plan templates** that each predicted plan class maps to.
 
 - **FitLife Dataset**  
   Contains exercise and workout plan patterns, including training frequencies and rough outcome trends.
@@ -103,9 +107,6 @@ Key preprocessing steps:
 - Reason:
   - Enough data in the training set for model fitting and cross-validation.
   - Sufficient held-out test set for **honest performance estimation**.
-
-> If your actual split is different (e.g. 75/25), update this section and keep the justification.
-
 ---
 
 ### 3.2 Cross-Validation
@@ -146,7 +147,6 @@ This confirms the model can closely approximate weekly weight change given the f
 
 - Overall **accuracy ≈ 0.90** on the test set
 - Macro F1-score ≈ **0.90**
-- Classification report shows all three classes performing well (precision, recall ~0.83–0.97)
 
 Confusion matrix on the test set (rows = true, columns = predicted):
 
@@ -163,8 +163,6 @@ This indicates that:
 - Most predictions lie on the diagonal (correct class).
 - Misclassifications are mostly between neighbouring intensity bands (e.g., class 0 → 1 or 2 → 0), which is acceptable for a progressive training system.
 
-The **classification head** with these metrics is what is deployed in production; the regression head is mainly used for analysis and future refinement of progression rules.
-
 ---
 
 ## 4. Modelling Approach
@@ -176,7 +174,6 @@ Several techniques were tried before settling on the final model:
 1. **Random Forest**
      - Strong performance on tabular data.
      - Robust to noise & non-linear interactions.
-     - Easy to train and deploy on CPU.
 
 3. **Transformer-based Sequence Model** (Experimental)
    - Small Transformer was tested to treat weekly progression more like a sequence problem.
@@ -190,30 +187,17 @@ Several techniques were tried before settling on the final model:
 - **Reason for selection:**
   - Highest or near-highest accuracy among tested models.
   - Good generalization on cross-validation and test set.
-  - Works well with mixed numeric + categorical features.
-  - CPU-friendly for Cloud Run (no GPU required).
-  - Easier to retrain and interpret than deep models.
-
-You can document your key hyperparameters (example, update with your real ones):
-
-- `n_estimators = 200`
-- `max_depth = None` (expand until stopping criteria)
-- `min_samples_split = 2`
-- `class_weight = "balanced"`
+  - Worked well with mixed numeric + categorical features.
 
 ---
-
-### 4.3 Epochs & Training Details
-
+4.3 Epochs & Training Details
 - **Random Forest:**  
-  - Non-iterative in the neural-network sense → **no “epochs”**; training is based on tree construction.
-
-- **Transformer Experiment (if asked):**
+  - **no “epochs”** training is based on tree construction.
+- **Transformer Experiment:**
   - Training was capped at, e.g., **30 epochs** with **early stopping** (patience 3–5 epochs).
   - Validation accuracy plateaued at around **33%**, below Random Forest performance.
-  - Conclusion: Transformer not suitable at this stage, due to data size and complexity → kept as **future research**.
+  - Conclusion: Transformer not suitable at this stage, due to data size and complexity.
 
----
 
 ## 5. Application Logic & Algorithms
 

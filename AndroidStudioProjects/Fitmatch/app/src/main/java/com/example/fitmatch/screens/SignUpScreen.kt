@@ -70,6 +70,7 @@ fun SignUpScreen(
                 .fillMaxSize()
                 .padding(inner)
                 .verticalScroll(rememberScrollState())
+                .imePadding()
                 .padding(horizontal = 24.dp, vertical = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -114,12 +115,15 @@ fun SignUpScreen(
                 state = pagerState,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .heightIn(min = 420.dp)
+                    .imePadding()
                     .weight(1f)
 
             ) { page ->
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
                         .padding(bottom = 24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ){

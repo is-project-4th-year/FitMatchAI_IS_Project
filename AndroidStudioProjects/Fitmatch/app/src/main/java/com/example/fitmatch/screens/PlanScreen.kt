@@ -328,6 +328,12 @@ fun CustomEntrySectionStyled(
                         Text("Calculate BMI and Calories")
                     }
 
+                    Text(
+                        "Goal type",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = Color(0xFF0B0D1A)
+                    )
+
                     // Goal chips row
                     Row(
                         Modifier
@@ -341,6 +347,19 @@ fun CustomEntrySectionStyled(
                         ChipPill("Endurance", selected = goalIndex == 2) { goalIndex = 2 }
                     }
 
+                    Text(
+                        "We’ll personalize sets/reps based on this.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF707A89)
+                    )
+
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Workout Type",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = Color(0xFF0B0D1A)
+                    )
+
                     // >>> CHANGED: Equipment chips to two clear options
                     Row(
                         Modifier.fillMaxWidth(),
@@ -350,6 +369,12 @@ fun CustomEntrySectionStyled(
                         ChipPill("Home workout", selected = equipment.equals("home", true)) { equipment = "home" }
                         ChipPill("Gym workout",  selected = equipment.equals("gym",  true)) { equipment = "gym"  }
                     }
+
+                    Text(
+                        "Choose where you train so we avoid suggesting unavailable equipment.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF707A89)
+                    )
 
                     if (uiError != null) {
                         Text(uiError, color = MaterialTheme.colorScheme.error)

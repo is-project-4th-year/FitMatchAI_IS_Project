@@ -18,7 +18,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -44,6 +43,7 @@ import java.util.*
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.ui.Alignment
 import kotlinx.coroutines.launch
 
 /* ---------- helpers ---------- */
@@ -102,7 +102,7 @@ fun GoalScreen(navigationManager: NavigationManager, auth: FirebaseAuth,
                             listOf(Color(0xFF19D27A), Color(0xFF4B84F6))
                         )
                     )
-                    .padding(top = 12.dp+ topInset, start = 16.dp, end = 16.dp)
+                    .padding(top = 8.dp+ topInset, start = 16.dp, end = 16.dp)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -349,7 +349,8 @@ private fun CreateGoalCardStyled(
                 OutlinedButton(
                     onClick = { pickDate(context) { startMillis = it } },
                     modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(12.dp),
+
                 ) {
                     Text(if (startMillis == 0L) "Pick date" else dateLabel(startMillis))
                 }
@@ -358,7 +359,7 @@ private fun CreateGoalCardStyled(
                 OutlinedTextField(
                     value = endMillis?.let { dateLabel(it) } ?: "—",
                     onValueChange = { /* read-only */ },
-                    label = { Text("End Date (auto)") },
+                    label = { Text("End Date") },
                     modifier = Modifier.weight(1f),
                     enabled = false,
                     singleLine = true
@@ -482,8 +483,14 @@ private fun GoalCardStyled(
                     .height(8.dp)
                     .clip(RoundedCornerShape(6.dp))
             )
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("${dateLabel(goal.startDate)} - ${dateLabel(goal.endDate)}", color = Color(0xFF7C8191), fontSize = 12.sp)
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ){
+                Text("${dateLabel(goal.startDate)} - ${dateLabel(goal.endDate)}",
+                    color = Color(0xFF7C8191), fontSize = 12.sp, maxLines = 1
+                )
                 Text("${goal.workoutsPerWeek}x/week", color = Color(0xFF7C8191), fontSize = 12.sp)
             }
 
@@ -660,7 +667,7 @@ private fun EditGoalDialog(
                     )
                 }
 
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp),) {
                     OutlinedButton(
                         onClick = { pickDate { startMs = it } },
                         modifier = Modifier.weight(1f),
@@ -672,10 +679,11 @@ private fun EditGoalDialog(
                     OutlinedTextField(
                         value = endMs?.let { dateLabel(it) } ?: "—",
                         onValueChange = {},
-                        label = { Text("End Date (auto)") },
+                        label = { Text("End Date") },
                         modifier = Modifier.weight(1f),
                         enabled = false,
-                        singleLine = true
+                        singleLine = true,
+                        maxLines = 1
                     )
                 }
             }

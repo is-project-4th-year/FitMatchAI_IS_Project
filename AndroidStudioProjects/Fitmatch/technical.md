@@ -19,9 +19,6 @@ The system focuses on:
 - Helping users set **clear goals** (e.g., fat loss, hypertrophy, endurance).
 - Using a **machine learning model** to map user profiles to an appropriate **plan variant / microcycle**.
 - Updating plans **week by week** based on adherence and progress, instead of remaining static.
-
-
-
 ---
 
 ## 2. Data & Features
@@ -83,14 +80,14 @@ Key preprocessing steps:
 - **Data Cleaning**
   - Type coercion for numeric fields.
   - Removal or clipping of impossible values (e.g. height < 120 cm, weight < 30 kg).
-  - Handling of missing values via median / constant imputation.
+  - Handling of missing values via median imputation.
 
 - **Feature Engineering**
   - `bmi` calculated from height and weight.
-  - Normalization / scaling of calorie-related features where required.
+  - Normalizaton of calorie-related features where required.
 
 - **Encoding**
-  - Ordinal / one-hot encoding for `goal_type` and `equipment`.
+  - One-hot encoding for `goal_type` and `equipment`.
 
 - **Feature Selection Rationale**
   - Features chosen based on:

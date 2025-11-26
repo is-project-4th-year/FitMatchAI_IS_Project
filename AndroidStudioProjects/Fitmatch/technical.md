@@ -285,11 +285,6 @@ In the GitHub repository, the following should be available:
 - `data/`  
   - Contains cleaned / anonymized versions of the training data (or scripts to fetch and preprocess original datasets).
 
-> During defense, keep the **notebook open** to quickly show:
-> - The features and classes.
-> - The train/test split.
-> - The evaluation results (accuracy and confusion matrix).
-
 ---
 
 ### 7.2 Android App Setup
@@ -320,4 +315,37 @@ In the GitHub repository, the following should be available:
   - Explore **hybrid models** (tree-based + sequence) for finer progression.
   - Integrate wearable data (steps, heart rate) where available.
 
+---
+## Computational Environment
+
+- *Hardware:* Intel core i7 8th Gen  
+- *Memory:* 16 GB RAM  
+- *Compute:* CPU-only  
+- *OS:* Windows 
+- *Android:* Android Studio Iguana, JDK 17, Pixel 8 Pro emulator (API 35)  
+- *Python:* 3.10  
+- *Key Libraries:* Jetpack Compose, Firebase Auth/Firestore, Retrofit/OkHttp, MPAndroidChart, FastAPI, Uvicorn, Docker, scikit-learn, pandas, numpy
+
+---
+
+## Time Investment
+
+- *Problem framing & literature review* — ~10 hours  
+- *Data preprocessing / curation (FitLife, Gym Members, MegaGym)* — ~12 hours  
+- *EDA & feature engineering* — ~10 hours  
+- *Model training & tuning (Random Forest + baselines)* — ~8 hours (CPU)  
+- *API build (FastAPI) + Docker + Cloud Run deployment* — ~16 hours  
+- *Android app (Compose) UI/flows* — ~46 hours  
+  - Auth (email/phone OTP), Goals CRUD, Plan (tabs + custom), Workout Log, Nutrition, Navigation & polish
+- *Firebase configuration & integration* — ~8 hours  
+  - Firestore schema, security rules, indexes
+- *Progress & analytics (charts, summaries, streaks)* — ~10 hours  
+- *QA / debugging (emulator, layout constraints, crashes)* — ~14 hours  
+- *Documentation & defense preparation* — ~11 hours  
+
+*Total:* *~145 hours*
+
+---
+
+End of Report
 ---

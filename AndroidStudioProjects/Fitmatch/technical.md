@@ -1,4 +1,5 @@
-# FitMatchAI – Personalized Fitness Planning with Random Forest
+# A Personalized Goal-Oriented Fitness Model using Random Forest Technique
+
 
 **Technical Documentation – Final Year Project**
 
